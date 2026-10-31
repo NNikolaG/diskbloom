@@ -9,7 +9,7 @@ a Collector for safe batch deletion, and a Smart Clean mode that finds
 regenerable junk such as build folders, dependency caches and Xcode DerivedData.
 The scanning engine is written in Rust and the app is native SwiftUI.
 
-> Status: early prototype (v0.1). Expect rough edges.
+> Status: early version (v0.2). Expect rough edges. English and Serbian interface.
 
 ## Features
 
@@ -29,6 +29,17 @@ The scanning engine is written in Rust and the app is native SwiftUI.
   [categories](#clean-categories)). Rules are context-aware: for example, `target/` is only
   flagged next to a `Cargo.toml`. Regenerable items are preselected; emulators, VMs and
   backups are only listed for you to review.
+- **Largest files**: the 300 biggest files with when you last opened them (from Spotlight),
+  filterable to "not opened in 6 months / a year".
+- **Duplicates**: finds identical files (size, then a hash of the first 64 KB, then a full
+  BLAKE3 hash). "Keep one" queues the other copies for the Trash.
+- **Time Machine local snapshots**: listed in the disk overview and removable (asks for
+  your admin password). These are often the biggest part of "purgeable" space.
+- **Proper cleanup for developer tools**: iOS simulators are removed with `xcrun simctl`,
+  Android emulators together with their `.ini`, and the Docker disk is never deleted;
+  Diskbloom offers `docker system prune` instead.
+- **Quick Look** (Space), **refresh one folder** without rescanning everything (⌘R), and
+  keyboard shortcuts for the views (⌘1 map, ⌘2 largest files, ⌘3 duplicates, ⌘K Smart Clean).
 - **Hidden space**: shows the difference between what the volume reports as used and
   what the scan could see (system volume, snapshots, folders without permission).
 - **CLI** (`bloom`): terminal tree, a standalone HTML sunburst and a dry-run-first cleaner.
@@ -39,11 +50,12 @@ The scanning engine is written in Rust and the app is native SwiftUI.
 Diskbloom is not on the App Store yet, so you either download a CI build or build it
 yourself. Both take a few minutes.
 
-### Option A: download a ready build
+### Option A: download a release
 
-1. Open the [latest successful CI run](https://github.com/NNikolaG/diskbloom/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess)
-   and download the **Diskbloom-macos** artifact (requires being signed in to GitHub).
-2. Unzip it and move `Diskbloom.app` to **Applications**.
+1. Download the latest **Diskbloom-x.y.z.dmg** from
+   [Releases](https://github.com/NNikolaG/diskbloom/releases/latest). It is a universal app
+   for Apple Silicon and Intel.
+2. Open the DMG and drag **Diskbloom** to **Applications**.
 3. The app is not notarized by Apple, so macOS blocks it on first launch. Either
    right-click the app → **Open** → **Open**, or run:
    ```bash
@@ -81,7 +93,8 @@ Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
 
 ### Updating
 
-You never need to delete the old version by hand:
+With a release: download the new DMG and drag Diskbloom to Applications again; macOS asks
+to replace the old version. From source, you never need to delete the old version by hand:
 
 ```bash
 cd diskbloom
@@ -169,10 +182,26 @@ includes them with `--include-review`.
 | `installers` | `.dmg`, `.pkg`, `.iso`, `.xip` in `~/Downloads` | review |
 | `trash` | `~/.Trash`, `~/.local/share/Trash` | review |
 
+## Language
+
+The interface follows the macOS language setting: English by default, Serbian (Latin) when
+Serbian is first in **System Settings → General → Language & Region**. Translations live in
+`macos/Resources/<lang>.lproj/Localizable.strings`; the keys are the English texts, so adding
+a language means copying `sr.lproj` and translating the right-hand side.
+
+## Releasing
+
+Push a tag and GitHub Actions builds a universal DMG and publishes the release (free for
+public repositories):
+
+```bash
+git tag v0.3.0 && git push origin v0.3.0
+```
+
 ## Project layout
 
 ```
-crates/core   scanner, arena tree, sunburst layout, clean rules (unit tested)
+crates/core   scanner, arena tree, sunburst layout, clean rules, duplicate finder (unit tested)
 crates/cli    `bloom` command line tool
 crates/ffi    UniFFI bindings exposing the core to Swift
 macos/        SwiftUI app (Swift Package) + build.sh
