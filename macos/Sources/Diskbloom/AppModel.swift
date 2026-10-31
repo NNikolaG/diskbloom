@@ -19,8 +19,8 @@ final class AppModel: ObservableObject {
         let size: UInt64
     }
 
-    static let rings: UInt32 = 6
-    static let minFraction = 0.0015
+    nonisolated static let rings: UInt32 = 6
+    nonisolated static let minFraction = 0.0015
 
     @Published var phase: Phase = .idle
     @Published private(set) var tree: DiskTree?
