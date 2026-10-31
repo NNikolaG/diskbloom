@@ -112,6 +112,8 @@ if [[ $INSTALL == 1 ]]; then
   pkill -x Diskbloom 2>/dev/null && sleep 1 || true
   rm -rf /Applications/Diskbloom.app
   cp -R "$APP" /Applications/
+  # Bez druge kopije u build folderu (inace Spotlight prikazuje dve aplikacije)
+  rm -rf "$APP"
   echo "==> instalirano: /Applications/Diskbloom.app"
   echo "    open -a Diskbloom"
 else

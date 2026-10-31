@@ -88,7 +88,7 @@ Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
 | Command | What it does |
 |---|---|
 | `./macos/build.sh` | builds `macos/build/Diskbloom.app` for this Mac |
-| `./macos/build.sh --install` | builds and replaces `/Applications/Diskbloom.app` (quits the running app first) |
+| `./macos/build.sh --install` | builds and replaces `/Applications/Diskbloom.app` (quits the running app first, leaves no second copy in `macos/build`) |
 | `./macos/build.sh --universal` | arm64 + x86_64 in one app (needs rustup) |
 
 ### Updating
