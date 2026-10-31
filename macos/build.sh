@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Pravi Diskbloom.app: Rust jezgro -> xcframework -> Swift veze -> SwiftUI app.
+# Pravi Diskbloom.app: Rust jezgro -> staticka biblioteka -> Swift veze -> SwiftUI app.
+# Treba: Rust (rustup ili brew) i Xcode Command Line Tools. Pun Xcode nije potreban.
 #   ./build.sh              arhitektura ovog Mac-a, release
 #   ./build.sh --universal  arm64 + x86_64
 set -euo pipefail
@@ -17,28 +18,48 @@ else
   esac
 fi
 
+# rustup instaliran, ali shell jos nije ucitao ~/.cargo/env
+[ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
+if ! command -v cargo >/dev/null; then
+  echo "Rust nije instaliran. Instaliraj ga pa pokreni ponovo:" >&2
+  echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh" >&2
+  echo "  (ili: brew install rust)" >&2
+  exit 1
+fi
+if ! command -v swift >/dev/null; then
+  echo "Nedostaju Xcode Command Line Tools: xcode-select --install" >&2
+  exit 1
+fi
+
 echo "==> Rust (${TARGETS[*]})"
 export MACOSX_DEPLOYMENT_TARGET=13.0
-for t in "${TARGETS[@]}"; do
-  rustup target add "$t" >/dev/null
-  cargo build --manifest-path "$ROOT/Cargo.toml" -p diskbloom-ffi --release --target "$t"
-done
+OUTDIRS=()
+if command -v rustup >/dev/null; then
+  for t in "${TARGETS[@]}"; do
+    rustup target add "$t" >/dev/null
+    cargo build --manifest-path "$ROOT/Cargo.toml" -p diskbloom-ffi --release --target "$t"
+    OUTDIRS+=("$ROOT/target/$t/release")
+  done
+else
+  # Rust bez rustup-a (npr. Homebrew): samo arhitektura ovog Mac-a
+  if [[ ${#TARGETS[@]} -gt 1 ]]; then
+    echo "--universal zahteva rustup (https://rustup.rs)" >&2; exit 1
+  fi
+  cargo build --manifest-path "$ROOT/Cargo.toml" -p diskbloom-ffi --release
+  OUTDIRS+=("$ROOT/target/release")
+fi
 
-rm -rf "$BUILD" && mkdir -p "$BUILD/headers" "$BUILD/lib"
-libs=(); for t in "${TARGETS[@]}"; do libs+=("$ROOT/target/$t/release/$LIB.a"); done
+rm -rf "$BUILD" && mkdir -p "$BUILD/ffi" "$BUILD/lib"
+libs=(); for d in "${OUTDIRS[@]}"; do libs+=("$d/$LIB.a"); done
 lipo -create "${libs[@]}" -output "$BUILD/lib/$LIB.a"
 
 echo "==> Swift veze (uniffi-bindgen)"
 cargo run --manifest-path "$ROOT/Cargo.toml" -q -p diskbloom-ffi --bin uniffi-bindgen -- \
-  generate --library "$ROOT/target/${TARGETS[0]}/release/$LIB.dylib" \
+  generate --library "${OUTDIRS[0]}/$LIB.dylib" \
   --language swift --out-dir "$BUILD/gen"
-cp "$BUILD/gen/diskbloom_ffiFFI.h" "$BUILD/headers/"
-cp "$BUILD/gen/diskbloom_ffiFFI.modulemap" "$BUILD/headers/module.modulemap"
+cp "$BUILD/gen/diskbloom_ffiFFI.h" "$BUILD/ffi/"
+cp "$BUILD/gen/diskbloom_ffiFFI.modulemap" "$BUILD/ffi/module.modulemap"
 cp "$BUILD/gen/diskbloom_ffi.swift" Sources/DiskbloomFFI/diskbloom_ffi.swift
-
-echo "==> xcframework"
-xcodebuild -create-xcframework -library "$BUILD/lib/$LIB.a" -headers "$BUILD/headers" \
-  -output "$BUILD/diskbloom_ffiFFI.xcframework" >/dev/null
 
 echo "==> SwiftUI app"
 ARCHS=(); for t in "${TARGETS[@]}"; do ARCHS+=(--arch "${t%%-*}"); done

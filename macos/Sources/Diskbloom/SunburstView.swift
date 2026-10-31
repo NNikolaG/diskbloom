@@ -61,10 +61,16 @@ struct SunburstView: View {
             ZStack {
                 Canvas { ctx, _ in
                     let separator = Color(nsColor: .windowBackgroundColor)
+                    // Segmenti su u pre-order redosledu (roditelj pre dece), pa jednim
+                    // prolazom znamo i sta je u korpi preko pretka.
+                    var dimmed = model.isCollected(model.focus) ? Set([model.focus]) : model.collectedIDs
                     for s in model.segments {
                         let hl = model.hovered.map { $0 == s } ?? false
                         let p = g.path(s)
-                        ctx.fill(p, with: .color(Palette.color(s, highlighted: hl)))
+                        let inTrash = dimmed.contains(s.parent) || s.id.map { dimmed.contains($0) } ?? false
+                        if inTrash, let id = s.id { dimmed.insert(id) }
+                        let color = Palette.color(s, highlighted: hl)
+                        ctx.fill(p, with: .color(inTrash ? color.opacity(0.22) : color))
                         ctx.stroke(p, with: .color(separator), lineWidth: 0.8)
                     }
                     let c = Path(ellipseIn: CGRect(x: g.center.x - g.inner + 4, y: g.center.y - g.inner + 4,
@@ -97,7 +103,9 @@ struct SunburstView: View {
             }
             .contextMenu {
                 if let s = model.hovered, let id = s.id {
-                    Button("Dodaj u Collector") { model.collect(id) }
+                    Button(model.collectedIDs.contains(id) ? "Izbaci iz korpe" : "Dodaj u korpu") {
+                        model.toggleCollect(id)
+                    }
                     Button("Prikazi u Finder-u") { model.revealInFinder(id) }
                 }
             }
@@ -115,6 +123,14 @@ struct SunburstView: View {
                 .minimumScaleFactor(0.7)
             Text(Fmt.bytes(size)).font(.title3.monospacedDigit()).foregroundStyle(.secondary)
                 .lineLimit(1).minimumScaleFactor(0.6)
+            if let s, let f = model.focusInfo {
+                Text("\(AppModel.percent(s.size, of: f.size)) od \(model.title(f))")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } else if model.crumbs.count > 1 {
+                Text("\(AppModel.percent(size, of: model.rootSize)) diska")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if s == nil, model.crumbs.count > 1 {
                 Text("klik za nazad").font(.caption2).foregroundStyle(.tertiary)
             }

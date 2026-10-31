@@ -21,7 +21,7 @@ struct ContentView: View {
                 case .ready:
                     ResultView()
                 }
-                if !model.collector.isEmpty { CollectorBar() }
+                if case .ready = model.phase { CollectorBar() }
             }
             .toolbar { toolbar }
         }
@@ -215,8 +215,13 @@ struct ChildrenList: View {
             VStack(alignment: .leading, spacing: 4) {
                 Breadcrumbs()
                 if let f = model.focusInfo {
-                    Text("\(Fmt.bytes(f.size)) · \(Fmt.count(f.files)) fajlova")
-                        .font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text("\(Fmt.bytes(f.size)) · \(Fmt.count(f.files)) fajlova")
+                        if model.crumbs.count > 1 {
+                            Text("· \(AppModel.percent(f.size, of: model.rootSize)) od \(model.crumbs.first.map { model.title($0) } ?? "")")
+                        }
+                    }
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if model.hiddenSpace > 0, model.crumbs.count == 1 {
                     Text("Skriveni prostor: \(Fmt.bytes(model.hiddenSpace))")
@@ -271,25 +276,52 @@ struct ChildRow: View {
 
     var body: some View {
         let seg = model.segments.first { $0.id == node.id }
+        let color = seg.map { Palette.color($0) } ?? Color.gray.opacity(0.35)
+        let fraction = total > 0 ? Double(node.size) / Double(total) : 0
+        let collected = model.isCollected(node.id)
         let highlighted = hover || (model.hovered?.id == node.id)
+
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(seg.map { Palette.color($0) } ?? Color.gray.opacity(0.35))
-                .frame(width: 10, height: 10)
+            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 10, height: 10)
             Image(systemName: node.isDir ? "folder.fill" : "doc")
                 .foregroundStyle(.secondary)
                 .frame(width: 16)
-            Text(node.displayName)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(Fmt.bytes(node.size))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .fixedSize()
+            VStack(alignment: .leading, spacing: 3) {
+                Text(node.displayName)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .strikethrough(collected)
+                    .foregroundStyle(collected ? .secondary : .primary)
+                // traka: koliki deo trenutnog foldera zauzima
+                GeometryReader { g in
+                    Capsule().fill(Color.primary.opacity(0.06))
+                        .overlay(alignment: .leading) {
+                            Capsule().fill(color.opacity(0.85))
+                                .frame(width: max(2, g.size.width * fraction))
+                        }
+                }
+                .frame(height: 3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(Fmt.bytes(node.size)).monospacedDigit()
+                Text(AppModel.percent(node.size, of: total))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize()
+            Button { model.toggleCollect(node.id) } label: {
+                Image(systemName: collected ? "trash.slash" : "trash")
+                    .foregroundStyle(collected ? Color.red : Color.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(hover || collected ? 1 : 0)
+            .help(collected ? "Izbaci iz korpe" : "Dodaj u korpu za brisanje")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(highlighted ? Color.primary.opacity(0.07) : .clear)
@@ -299,10 +331,9 @@ struct ChildRow: View {
         .onHover { hover = $0 }
         .onTapGesture { if node.hasChildren { model.zoom(to: node.id) } }
         .draggable(String(node.id))
-        .help("\(node.displayName) — \(Fmt.bytes(node.size)) (\(Int((Double(node.size) / Double(max(total, 1)) * 100).rounded()))%)")
         .contextMenu {
             if node.hasChildren { Button("Otvori") { model.zoom(to: node.id) } }
-            Button("Dodaj u Collector") { model.collect(node.id) }
+            Button(collected ? "Izbaci iz korpe" : "Dodaj u korpu") { model.toggleCollect(node.id) }
             Button("Prikazi u Finder-u") { model.revealInFinder(node.id) }
         }
     }

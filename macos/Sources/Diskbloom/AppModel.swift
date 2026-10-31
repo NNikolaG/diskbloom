@@ -74,6 +74,11 @@ final class AppModel: ObservableObject {
                     self.hiddenSpace = Self.hiddenSpace(scanned: url, tree: tree)
                     self.phase = .ready
                     self.zoom(to: tree.root())
+                    // CI screenshot: pokazi korpu sa jednom stavkom
+                    if ProcessInfo.processInfo.environment["DISKBLOOM_DEMO"] != nil,
+                       let first = self.children.first {
+                        self.collect(first.id)
+                    }
                 case .failure(let e) where (e as? BloomError) == .Cancelled:
                     self.phase = .idle
                 case .failure(let e):
@@ -167,6 +172,28 @@ final class AppModel: ObservableObject {
     }
 
     func uncollect(_ id: UInt32) { collector.removeAll { $0.id == id } }
+
+    var collectedIDs: Set<UInt32> { Set(collector.map(\.id)) }
+
+    /// Da li je stavka (ili neki njen predak) vec u korpi.
+    func isCollected(_ id: UInt32) -> Bool {
+        let ids = collectedIDs
+        return ids.contains(id) || crumbs.contains { ids.contains($0.id) }
+    }
+
+    func toggleCollect(_ id: UInt32) {
+        if collectedIDs.contains(id) { uncollect(id) } else { collect(id) }
+    }
+
+    var rootSize: UInt64 { tree.flatMap { $0.info(id: $0.root()) }?.size ?? 0 }
+
+    /// Udeo u procentima, npr. "12.3%" (ili "<0.1%").
+    static func percent(_ part: UInt64, of total: UInt64) -> String {
+        guard total > 0 else { return "" }
+        let p = Double(part) / Double(total) * 100
+        if p > 0, p < 0.1 { return "<0.1%" }
+        return String(format: p >= 10 ? "%.0f%%" : "%.1f%%", p)
+    }
 
     /// Salje u Trash (moze da se vrati), pa azurira stablo bez ponovnog skeniranja.
     @discardableResult

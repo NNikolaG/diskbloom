@@ -40,7 +40,7 @@ jobs:
           path: macos/build/Diskbloom.zip
       - name: Screenshot (smoke test)
         run: |
-          DISKBLOOM_SCAN="$HOME" macos/build/Diskbloom.app/Contents/MacOS/Diskbloom &
+          DISKBLOOM_DEMO=1 DISKBLOOM_SCAN="$HOME" macos/build/Diskbloom.app/Contents/MacOS/Diskbloom &
           APP_PID=$!
           sleep 45
           kill -0 "$APP_PID"   # app se nije srusila

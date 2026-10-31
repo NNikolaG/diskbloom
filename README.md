@@ -18,8 +18,10 @@ The scanning engine is written in Rust and the app is native SwiftUI.
   on one volume.
 - **Sunburst map**: rings show depth and angle shows size. Tiny items are merged into
   "smaller objects". Click to zoom in, click the center to go back.
-- **Collector**: drag items into a tray, see the total, then move everything to the Trash
-  in one step. The map updates in place with no rescan.
+- **Percent of parent and of disk** for every item, with a proportion bar in the list.
+- **Collector**: while browsing, click the trash icon on any row (or drag it to the tray)
+  to queue it. See the total, then move everything to the Trash in one step. The map
+  dims queued items and updates in place with no rescan.
 - **Smart Clean**: context-aware rules. For example, `target/` is only flagged when a
   `Cargo.toml` sits next to it, and `node_modules/` only next to a `package.json`.
 - **Hidden space**: shows the difference between what the volume reports as used and
@@ -29,7 +31,8 @@ The scanning engine is written in Rust and the app is native SwiftUI.
 
 ## Build the macOS app
 
-Requirements: macOS 13+, Xcode command line tools and [Rust](https://rustup.rs).
+Requirements: macOS 13+, Xcode Command Line Tools (`xcode-select --install`, full Xcode
+is not needed) and Rust ([rustup](https://rustup.rs) or `brew install rust`).
 
 ```bash
 ./macos/build.sh             # this Mac's architecture
