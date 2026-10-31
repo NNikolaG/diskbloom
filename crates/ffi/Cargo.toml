@@ -1,0 +1,23 @@
+[package]
+name = "diskbloom-ffi"
+description = "UniFFI bindings exposing diskbloom-core to Swift"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "diskbloom_ffi"
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+diskbloom-core.workspace = true
+uniffi = { version = "0.32", features = ["cli"] }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

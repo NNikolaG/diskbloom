@@ -1,0 +1,13 @@
+[package]
+name = "diskbloom-core"
+description = "Fast parallel disk scanner, sunburst layout and cleanup rules"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rayon = "1"
+
+[dev-dependencies]
+tempfile = "3"

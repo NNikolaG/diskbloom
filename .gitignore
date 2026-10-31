@@ -1,0 +1,8 @@
+/target
+/macos/build
+/macos/.build
+/macos/.swiftpm
+/macos/Sources/DiskbloomFFI/diskbloom_ffi.swift
+*.html
+!crates/cli/src/sunburst.html
+.DS_Store

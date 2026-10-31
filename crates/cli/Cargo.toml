@@ -1,0 +1,15 @@
+[package]
+name = "diskbloom-cli"
+description = "diskbloom command line: top, sunburst map, cleaner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "bloom"
+path = "src/main.rs"
+
+[dependencies]
+diskbloom-core.workspace = true
+clap = { version = "4", features = ["derive"] }

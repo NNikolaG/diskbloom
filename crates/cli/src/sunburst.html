@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>diskbloom</title>
+<style>
+  :root { --bg:#14161a; --fg:#e8e8e8; --dim:#8a8f98; --panel:#1d2026; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,sans-serif;
+         display:flex; height:100vh; overflow:hidden }
+  #chart { flex:1; display:flex; align-items:center; justify-content:center; min-width:0 }
+  svg { width:100%; height:100%; max-height:100vh }
+  path { stroke:var(--bg); stroke-width:1; cursor:pointer }
+  path:hover { filter:brightness(1.25) }
+  #side { width:340px; background:var(--panel); padding:16px; overflow:auto }
+  #crumbs a { color:#7fb3ff; cursor:pointer; text-decoration:none }
+  #crumbs { word-break:break-all; margin-bottom:12px }
+  .row { display:flex; justify-content:space-between; gap:8px; padding:4px 6px; border-radius:4px; cursor:pointer }
+  .row:hover { background:#2a2e36 }
+  .row span:last-child { color:var(--dim); white-space:nowrap }
+  .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px }
+  #tip { position:fixed; pointer-events:none; background:#000c; padding:6px 8px; border-radius:4px; display:none; font-size:12px }
+  #center { cursor:pointer }
+  @media (max-width:700px){ body{flex-direction:column} #side{width:100%;height:40vh} }
+</style>
+</head>
+<body>
+<div id="chart"><svg id="svg" viewBox="-400 -400 800 800"></svg></div>
+<div id="side"><div id="crumbs"></div><div id="list"></div></div>
+<div id="tip"></div>
+<script>
+const DATA = /*DATA*/null;
+const RINGS = 6, R0 = 90, RW = 48;
+const fmt = b => { const u=["B","KB","MB","GB","TB","PB"]; let i=0; while(b>=1000&&i<5){b/=1000;i++} return i? b.toFixed(1)+" "+u[i] : b+" B"; };
+(function link(n,p){ n.p=p; (n.c||[]).forEach(c=>link(c,n)); })(DATA,null);
+const svg = document.getElementById("svg"), tip = document.getElementById("tip");
+let focus = DATA;
+
+function arc(a0,a1,r0,r1){
+  const big = a1-a0 > Math.PI ? 1 : 0, s=Math.sin, c=Math.cos;
+  if (a1-a0 >= 2*Math.PI-1e-6) a1 = a0 + 2*Math.PI - 1e-4;
+  return `M${r0*s(a0)},${-r0*c(a0)}A${r0},${r0} 0 ${big} 1 ${r0*s(a1)},${-r0*c(a1)}`+
+         `L${r1*s(a1)},${-r1*c(a1)}A${r1},${r1} 0 ${big} 0 ${r1*s(a0)},${-r1*c(a0)}Z`;
+}
+function color(hue,depth,small){ return small ? `hsl(0,0%,${40-depth*3}%)` : `hsl(${hue},${70-depth*5}%,${58-depth*5}%)`; }
+function path(n){ const p=[]; for(let x=n;x;x=x.p) p.unshift(x); return p; }
+
+function draw(){
+  svg.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  const total = focus.s || 1;
+  function rec(n,a0,depth,hue){
+    let a = a0;
+    for (const c of n.c||[]){
+      const da = c.s/total*2*Math.PI;
+      if (da < 0.003) { a += da; continue; }
+      const h = depth===0 ? ((a+da/2)/(2*Math.PI))*360 : hue;
+      const el = document.createElementNS("http://www.w3.org/2000/svg","path");
+      el.setAttribute("d", arc(a,a+da,R0+depth*RW,R0+(depth+1)*RW-1));
+      el.setAttribute("fill", color(h,depth,c.x));
+      el.onmousemove = e => { tip.style.display="block"; tip.style.left=e.clientX+12+"px"; tip.style.top=e.clientY+12+"px";
+        tip.textContent = `${c.n}${c.d?"/":""} — ${fmt(c.s)} (${(c.s/total*100).toFixed(1)}%)`; };
+      el.onmouseleave = () => tip.style.display="none";
+      el.onclick = () => { if (c.c && c.c.length) { focus=c; draw(); } };
+      frag.appendChild(el);
+      if (depth+1 < RINGS) rec(c,a,depth+1,h);
+      a += da;
+    }
+  }
+  rec(focus,0,0,0);
+  const cc = document.createElementNS("http://www.w3.org/2000/svg","g");
+  cc.id="center";
+  cc.innerHTML = `<circle r="${R0-4}" fill="#22262d"/>`+
+    `<text text-anchor="middle" y="-6" fill="#e8e8e8" font-size="16">${esc(short(focus.n))}</text>`+
+    `<text text-anchor="middle" y="18" fill="#8a8f98" font-size="14">${fmt(focus.s)}</text>`;
+  cc.onclick = () => { if (focus.p) { focus=focus.p; draw(); } };
+  frag.appendChild(cc);
+  svg.appendChild(frag);
+  side();
+}
+function esc(s){ return s.replace(/[&<>"]/g, ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch])); }
+function short(s){ return s.length>18 ? s.slice(0,17)+"…" : s; }
+function side(){
+  const cr = document.getElementById("crumbs"); cr.innerHTML="";
+  path(focus).forEach((n,i,arr)=>{ const a=document.createElement("a"); a.textContent=n.n+(i<arr.length-1&&!n.n.endsWith("/")?" / ":" ");
+    a.onclick=()=>{focus=n;draw();}; cr.appendChild(a); });
+  const list = document.getElementById("list"); list.innerHTML="";
+  const total = focus.s||1; let a=0;
+  for (const c of focus.c||[]){
+    const da = c.s/total*2*Math.PI, hue=((a+da/2)/(2*Math.PI))*360; a+=da;
+    const r=document.createElement("div"); r.className="row";
+    r.innerHTML=`<span><i class="sw" style="background:${color(hue,0,c.x)}"></i>${esc(c.n)}${c.d?"/":""}</span><span>${fmt(c.s)}</span>`;
+    r.onclick=()=>{ if(c.c&&c.c.length){focus=c;draw();} };
+    list.appendChild(r);
+  }
+}
+draw();
+</script>
+</body>
+</html>
