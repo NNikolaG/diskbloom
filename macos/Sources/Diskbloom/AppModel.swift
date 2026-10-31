@@ -20,7 +20,7 @@ final class AppModel: ObservableObject {
     }
 
     nonisolated static let rings: UInt32 = 6
-    nonisolated static let minFraction = 0.0015
+    nonisolated static let minFraction = 0.003
 
     @Published var phase: Phase = .idle
     @Published private(set) var tree: DiskTree?

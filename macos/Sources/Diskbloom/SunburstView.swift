@@ -60,9 +60,12 @@ struct SunburstView: View {
             let g = Geometry(size: proxy.size)
             ZStack {
                 Canvas { ctx, _ in
+                    let separator = Color(nsColor: .windowBackgroundColor)
                     for s in model.segments {
                         let hl = model.hovered.map { $0 == s } ?? false
-                        ctx.fill(g.path(s), with: .color(Palette.color(s, highlighted: hl)))
+                        let p = g.path(s)
+                        ctx.fill(p, with: .color(Palette.color(s, highlighted: hl)))
+                        ctx.stroke(p, with: .color(separator), lineWidth: 0.8)
                     }
                     let c = Path(ellipseIn: CGRect(x: g.center.x - g.inner + 4, y: g.center.y - g.inner + 4,
                                                    width: (g.inner - 4) * 2, height: (g.inner - 4) * 2))

@@ -17,12 +17,14 @@ enum Palette {
     static func color(hue: Double, depth: UInt32, aggregated: Bool, highlighted: Bool = false) -> Color {
         let d = Double(depth)
         if aggregated {
-            return Color(white: max(0.25, 0.48 - d * 0.03) + (highlighted ? 0.15 : 0))
+            return Color(white: 0.55).opacity(highlighted ? 0.75 : 0.4)
         }
+        // Ista paleta kao ikonica: cijan -> plava -> ljubicasta -> roze -> cilibar.
+        let h = (0.52 + hue * 0.6).truncatingRemainder(dividingBy: 1)
         return Color(
-            hue: hue.truncatingRemainder(dividingBy: 1),
-            saturation: max(0.35, 0.72 - d * 0.06),
-            brightness: min(1, max(0.45, 0.92 - d * 0.07) + (highlighted ? 0.12 : 0))
+            hue: h,
+            saturation: max(0.42, 0.62 - d * 0.035),
+            brightness: min(1, max(0.58, 0.9 - d * 0.055) + (highlighted ? 0.1 : 0))
         )
     }
 
