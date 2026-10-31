@@ -100,10 +100,11 @@ final class AppModel: ObservableObject {
 
     /// "Hidden space" kao u DaisyDisk-u: zauzeto na volumenu minus ono sto smo videli.
     static func hiddenSpace(scanned url: URL, tree: DiskTree) -> UInt64 {
-        let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityKey, .volumeURLKey]
+        // "ForImportantUsage" ukljucuje purgeable prostor kao slobodan, kao Finder.
+        let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeURLKey]
         guard let v = try? url.resourceValues(forKeys: keys),
               v.volume?.standardizedFileURL == url.standardizedFileURL || url.path == "/",
-              let total = v.volumeTotalCapacity, let free = v.volumeAvailableCapacity,
+              let total = v.volumeTotalCapacity.map(Int64.init), let free = v.volumeAvailableCapacityForImportantUsage,
               let seen = tree.info(id: tree.root())?.size
         else { return 0 }
         let used = UInt64(max(0, total - free))
@@ -130,6 +131,25 @@ final class AppModel: ObservableObject {
     }
 
     func path(_ id: UInt32) -> String { tree?.path(id: id) ?? "" }
+
+    /// Lepo ime: za koren prikazujemo ime volumena/foldera umesto pune putanje.
+    func title(_ n: NodeInfo) -> String {
+        guard let tree, n.id == tree.root() else { return n.name }
+        let path = tree.rootPath()
+        if path == "/System/Volumes/Data" || path == "/" {
+            let v = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeNameKey])
+            return v?.volumeName ?? "Macintosh HD"
+        }
+        let url = URL(fileURLWithPath: path)
+        return url.lastPathComponent.isEmpty ? path : url.lastPathComponent
+    }
+
+    /// Za CI screenshot / brzo testiranje: DISKBLOOM_SCAN=/neki/folder skenira odmah.
+    func autoScanFromEnvironment() {
+        if let p = ProcessInfo.processInfo.environment["DISKBLOOM_SCAN"], !p.isEmpty {
+            scan(URL(fileURLWithPath: p))
+        }
+    }
 
     func revealInFinder(_ id: UInt32) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path(id))])

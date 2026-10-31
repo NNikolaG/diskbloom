@@ -8,7 +8,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             VolumesSidebar()
-                .navigationSplitViewColumnWidth(min: 200, ideal: 230)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
         } detail: {
             VStack(spacing: 0) {
                 switch model.phase {
@@ -114,9 +114,11 @@ struct VolumeRow: View {
         let used = Double(volume.total - volume.free) / Double(volume.total)
         VStack(alignment: .leading, spacing: 4) {
             Label(volume.name, systemImage: volume.url.path == "/" ? "internaldrive" : "externaldrive")
+                .lineLimit(1)
             ProgressView(value: used).tint(used > 0.9 ? .red : .accentColor)
             Text("\(Fmt.bytes(UInt64(volume.free))) slobodno od \(Fmt.bytes(UInt64(volume.total)))")
                 .font(.caption).foregroundStyle(.secondary)
+                .lineLimit(1)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
@@ -173,9 +175,13 @@ struct ResultView: View {
     var body: some View {
         VStack(spacing: 0) {
             if model.inaccessible > 0 { AccessBanner() }
-            HSplitView {
-                SunburstView().frame(minWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
-                ChildrenList().frame(minWidth: 260, idealWidth: 320, maxWidth: 480)
+            // Obican HStack umesto HSplitView: HSplitView je sabirao idealne sirine
+            // i gurao sadrzaj van prozora (sidebar odsecen levo, lista desno).
+            HStack(spacing: 0) {
+                SunburstView()
+                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
+                ChildrenList().frame(width: 340)
             }
         }
     }
@@ -185,15 +191,19 @@ struct AccessBanner: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        HStack {
-            Image(systemName: "lock.fill")
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill").foregroundStyle(.orange)
             Text("\(Fmt.count(model.inaccessible)) foldera nije dostupno. Daj Diskbloom-u Full Disk Access za potpun pregled.")
-            Spacer()
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Button("Otvori podesavanja") { model.openFullDiskAccessSettings() }
+                .fixedSize()
         }
         .font(.callout)
-        .padding(8)
-        .background(.yellow.opacity(0.18))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.12))
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -202,17 +212,31 @@ struct ChildrenList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Breadcrumbs().padding(10)
-            if model.hiddenSpace > 0, model.crumbs.count == 1 {
-                Text("Skriveni prostor (sistem, snapshot-i, nedostupno): \(Fmt.bytes(model.hiddenSpace))")
-                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 6)
+            VStack(alignment: .leading, spacing: 4) {
+                Breadcrumbs()
+                if let f = model.focusInfo {
+                    Text("\(Fmt.bytes(f.size)) · \(Fmt.count(f.files)) fajlova")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if model.hiddenSpace > 0, model.crumbs.count == 1 {
+                    Text("Skriveni prostor: \(Fmt.bytes(model.hiddenSpace))")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .help("Zauzeto na volumenu, a nije vidljivo skeneru: sistemski volumen, snapshot-i, folderi bez dozvole.")
+                }
             }
+            .padding(12)
             Divider()
-            List(model.children, id: \.id) { c in
-                ChildRow(node: c)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(model.children, id: \.id) { c in
+                        ChildRow(node: c, total: model.focusInfo?.size ?? 1)
+                    }
+                }
+                .padding(.vertical, 4)
             }
-            .listStyle(.inset)
         }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }
 
@@ -220,15 +244,21 @@ struct Breadcrumbs: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(Array(model.crumbs.enumerated()), id: \.element.id) { i, n in
-                    if i > 0 { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary) }
-                    Button(i == 0 ? model.tree?.rootPath() ?? n.name : n.name) { model.zoom(to: n.id) }
-                        .buttonStyle(.link)
-                        .lineLimit(1)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 3) {
+                    ForEach(Array(model.crumbs.enumerated()), id: \.element.id) { i, n in
+                        if i > 0 { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary) }
+                        Button(model.title(n)) { model.zoom(to: n.id) }
+                            .buttonStyle(.link)
+                            .font(i == model.crumbs.count - 1 ? .headline : .body)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .id(n.id)
+                    }
                 }
             }
+            .onChange(of: model.focus) { id in proxy.scrollTo(id, anchor: .trailing) }
         }
     }
 }
@@ -236,21 +266,40 @@ struct Breadcrumbs: View {
 struct ChildRow: View {
     @EnvironmentObject var model: AppModel
     let node: NodeInfo
+    let total: UInt64
+    @State private var hover = false
 
     var body: some View {
         let seg = model.segments.first { $0.id == node.id }
-        HStack {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(seg.map { Palette.color($0) } ?? Color.gray.opacity(0.4))
+        let highlighted = hover || (model.hovered?.id == node.id)
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(seg.map { Palette.color($0) } ?? Color.gray.opacity(0.35))
                 .frame(width: 10, height: 10)
-            Image(systemName: node.isDir ? "folder.fill" : "doc").foregroundStyle(.secondary)
-            Text(node.displayName).lineLimit(1).truncationMode(.middle)
-            Spacer()
-            Text(Fmt.bytes(node.size)).monospacedDigit().foregroundStyle(.secondary)
+            Image(systemName: node.isDir ? "folder.fill" : "doc")
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(node.displayName)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(Fmt.bytes(node.size))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .fixedSize()
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(highlighted ? Color.primary.opacity(0.07) : .clear)
+                .padding(.horizontal, 4)
+        )
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { if node.hasChildren { model.zoom(to: node.id) } }
+        .onHover { hover = $0 }
+        .onTapGesture { if node.hasChildren { model.zoom(to: node.id) } }
         .draggable(String(node.id))
+        .help("\(node.displayName) — \(Fmt.bytes(node.size)) (\(Int((Double(node.size) / Double(max(total, 1)) * 100).rounded()))%)")
         .contextMenu {
             if node.hasChildren { Button("Otvori") { model.zoom(to: node.id) } }
             Button("Dodaj u Collector") { model.collect(node.id) }

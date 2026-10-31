@@ -1,3 +1,5 @@
+<p align="center"><img src="macos/Resources/AppIcon.png" width="160" alt="Diskbloom icon"></p>
+
 # Diskbloom
 
 **See what's eating your Mac's disk, then clean it up.**

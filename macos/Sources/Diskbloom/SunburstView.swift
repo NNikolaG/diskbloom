@@ -68,7 +68,7 @@ struct SunburstView: View {
                                                    width: (g.inner - 4) * 2, height: (g.inner - 4) * 2))
                     ctx.fill(c, with: .color(Color(nsColor: .controlBackgroundColor)))
                 }
-                centerLabel.frame(width: g.inner * 1.6)
+                centerLabel.frame(width: g.inner * 1.55, height: g.inner * 1.4)
                     .position(g.center)
                     .allowsHitTesting(false)
             }
@@ -105,11 +105,13 @@ struct SunburstView: View {
 
     @ViewBuilder private var centerLabel: some View {
         let s = model.hovered
-        let name = s?.name ?? model.focusInfo?.name ?? ""
+        let name = s?.name ?? model.focusInfo.map { model.title($0) } ?? ""
         let size = s?.size ?? model.focusInfo?.size ?? 0
         VStack(spacing: 4) {
             Text(name).font(.headline).lineLimit(2).multilineTextAlignment(.center)
+                .minimumScaleFactor(0.7)
             Text(Fmt.bytes(size)).font(.title3.monospacedDigit()).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.6)
             if s == nil, model.crumbs.count > 1 {
                 Text("klik za nazad").font(.caption2).foregroundStyle(.tertiary)
             }

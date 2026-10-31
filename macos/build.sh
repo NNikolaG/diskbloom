@@ -50,6 +50,14 @@ APP="$BUILD/Diskbloom.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Diskbloom"
 cp Info.plist "$APP/Contents/Info.plist"
+
+# Ikonica: AppIcon.png (1024) -> .icns
+ICONSET="$BUILD/AppIcon.iconset"; mkdir -p "$ICONSET"
+for s in 16 32 128 256 512; do
+  sips -z $s $s Resources/AppIcon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  sips -z $((s*2)) $((s*2)) Resources/AppIcon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$APP" >/dev/null  # ad-hoc potpis; za distribuciju treba Developer ID
 echo "==> gotovo: $APP"
 echo "    open \"$APP\""

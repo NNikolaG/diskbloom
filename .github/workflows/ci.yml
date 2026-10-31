@@ -38,3 +38,16 @@ jobs:
         with:
           name: Diskbloom-macos
           path: macos/build/Diskbloom.zip
+      - name: Screenshot (smoke test)
+        run: |
+          DISKBLOOM_SCAN="$HOME" macos/build/Diskbloom.app/Contents/MacOS/Diskbloom &
+          APP_PID=$!
+          sleep 45
+          kill -0 "$APP_PID"   # app se nije srusila
+          screencapture -x macos/build/screenshot.png
+          kill "$APP_PID" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshot
+          path: macos/build/screenshot.png

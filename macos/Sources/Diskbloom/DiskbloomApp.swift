@@ -15,8 +15,10 @@ struct DiskbloomApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 960, minHeight: 620)
+                .onAppear { model.autoScanFromEnvironment() }
         }
+        .defaultSize(width: 1280, height: 820)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Skeniraj Home") { model.scan(FileManager.default.homeDirectoryForCurrentUser) }
