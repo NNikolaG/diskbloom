@@ -93,7 +93,7 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 # ili Developer ID) macOS pamti Full Disk Access izmedju build-ova. Ad-hoc potpis se
 # menja svakim build-om, pa macOS novu verziju vidi kao drugu aplikaciju.
 IDENTITY="${DISKBLOOM_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
-  | grep -Eo '"(Developer ID Application|Apple Development)[^"]*"' | head -1 | tr -d '"')}"
+  | grep -Eo '"(Developer ID Application|Apple Development)[^"]*"' | head -1 | tr -d '"' || true)}"
 if [[ -n "$IDENTITY" ]]; then
   codesign --force --sign "$IDENTITY" "$APP" >/dev/null
   echo "==> potpisano: $IDENTITY"
