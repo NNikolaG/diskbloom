@@ -309,7 +309,7 @@ struct ChildRow: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            .fixedSize()
+            .frame(width: 76, alignment: .trailing)
             Button { model.toggleCollect(node.id) } label: {
                 Image(systemName: collected ? "trash.slash" : "trash")
                     .foregroundStyle(collected ? Color.red : Color.secondary)
