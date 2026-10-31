@@ -24,26 +24,109 @@ The scanning engine is written in Rust and the app is native SwiftUI.
 - **Collector**: while browsing, click the trash icon on any row (or drag it to the tray)
   to queue it. See the total, then move everything to the Trash in one step. The map
   dims queued items and updates in place with no rescan.
-- **Smart Clean**: context-aware rules. For example, `target/` is only flagged when a
-  `Cargo.toml` sits next to it, and `node_modules/` only next to a `package.json`.
+- **Smart Clean**: finds build folders, package and app caches, Xcode DerivedData, iOS
+  simulators, Android emulators, VM disks, old installers and more (see
+  [categories](#clean-categories)). Rules are context-aware: for example, `target/` is only
+  flagged next to a `Cargo.toml`. Regenerable items are preselected; emulators, VMs and
+  backups are only listed for you to review.
 - **Hidden space**: shows the difference between what the volume reports as used and
   what the scan could see (system volume, snapshots, folders without permission).
 - **CLI** (`bloom`): terminal tree, a standalone HTML sunburst and a dry-run-first cleaner.
   It also works on Linux.
 
-## Build the macOS app
+## Install
 
-Requirements: macOS 13+, Xcode Command Line Tools (`xcode-select --install`, full Xcode
-is not needed) and Rust ([rustup](https://rustup.rs) or `brew install rust`).
+Diskbloom is not on the App Store yet, so you either download a CI build or build it
+yourself. Both take a few minutes.
+
+### Option A: download a ready build
+
+1. Open the [latest successful CI run](https://github.com/NNikolaG/diskbloom/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess)
+   and download the **Diskbloom-macos** artifact (requires being signed in to GitHub).
+2. Unzip it and move `Diskbloom.app` to **Applications**.
+3. The app is not notarized by Apple, so macOS blocks it on first launch. Either
+   right-click the app → **Open** → **Open**, or run:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Diskbloom.app
+   ```
+
+### Option B: build from source
+
+Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
+
+1. **Xcode Command Line Tools** (full Xcode is not needed):
+   ```bash
+   xcode-select --install
+   ```
+2. **Rust**, either with rustup (recommended, also allows universal builds):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+   or with Homebrew: `brew install rust`. Open a new terminal afterwards.
+3. **Build and install** into `/Applications`:
+   ```bash
+   git clone https://github.com/NNikolaG/diskbloom.git
+   cd diskbloom
+   ./macos/build.sh --install
+   open -a Diskbloom
+   ```
+
+`build.sh` options:
+
+| Command | What it does |
+|---|---|
+| `./macos/build.sh` | builds `macos/build/Diskbloom.app` for this Mac |
+| `./macos/build.sh --install` | builds and replaces `/Applications/Diskbloom.app` (quits the running app first) |
+| `./macos/build.sh --universal` | arm64 + x86_64 in one app (needs rustup) |
+
+### Updating
+
+You never need to delete the old version by hand:
 
 ```bash
-./macos/build.sh             # this Mac's architecture
-./macos/build.sh --universal # arm64 + x86_64
-open macos/build/Diskbloom.app
+cd diskbloom
+git pull
+./macos/build.sh --install
 ```
 
-For a complete scan, grant **Full Disk Access** in System Settings → Privacy & Security.
-The app shows a banner with a shortcut when folders were inaccessible.
+### Full Disk Access
+
+Without it macOS hides parts of your disk (Mail, Messages, Safari data, other users,
+some caches), and Diskbloom shows a yellow banner with the number of inaccessible folders.
+
+1. Open **System Settings → Privacy & Security → Full Disk Access** (the banner and the
+   disk overview have a button for this).
+2. Turn on **Diskbloom** (use **+** to add it from Applications if it's missing).
+3. Quit and reopen Diskbloom.
+
+**Why it may ask again after every build:** an app built without an Apple certificate
+gets a new ad-hoc signature each time, and macOS treats every build as a different app.
+To keep the permission across updates, add your Apple ID once in **Xcode → Settings →
+Accounts** (a free account is enough). `build.sh` then finds the "Apple Development"
+certificate and signs with it automatically. To use a specific certificate, set it
+explicitly:
+
+```bash
+DISKBLOOM_SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)" ./macos/build.sh --install
+```
+
+### Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `rustup: command not found` / `cargo: command not found` | Install Rust (step 2) and open a new terminal. |
+| `xcrun: error: invalid active developer path` | Run `xcode-select --install`. |
+| "Diskbloom can't be opened because Apple cannot check it" | Right-click → **Open**, or remove the quarantine flag (Option A, step 3). |
+| Scanning **Macintosh HD** shows less than Finder | Grant Full Disk Access. The rest is system data and snapshots, shown as *hidden space*. |
+| Emptying the Trash asks to control Finder | Expected. Diskbloom empties the Trash through Finder, so allow it once. |
+
+### Uninstall
+
+```bash
+rm -rf /Applications/Diskbloom.app
+```
+
+Diskbloom keeps no settings or caches of its own.
 
 ## CLI
 
