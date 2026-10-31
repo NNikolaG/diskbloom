@@ -1,49 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<defs>
- <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="0" stop-color="#262a45"/><stop offset="1" stop-color="#0c0e1c"/>
- </linearGradient>
- <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-  <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
- </radialGradient>
- <radialGradient id="core" cx="0.42" cy="0.38" r="0.7">
-  <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe4f2"/>
- </radialGradient>
- <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
- </linearGradient>
- <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
-  <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity="0.45"/>
- </filter>
- <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
-</defs>
-<g filter="url(#sh)"><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/></g>
-<g clip-path="url(#sq)">
- <circle cx="512" cy="512" r="380" fill="url(#glow)"/>
- <g transform="rotate(-18 512 512)"><path d="M517.64,322.08A190,190 0 0 1 675.37,609.00L618.62,575.31A124,124 0 0 0 515.68,388.05Z" fill="#64d2e1" stroke="#64d2e1" stroke-width="10" stroke-linejoin="round"/>
-<path d="M519.83,248.12A264,264 0 0 1 739.47,378.01L694.67,404.40A212,212 0 0 0 518.29,300.09Z" fill="#42c8db" stroke="#42c8db" stroke-width="10" stroke-linejoin="round"/>
-<path d="M521.55,190.14A322,322 0 0 1 728.98,274.08L704.72,300.68A286,286 0 0 0 520.48,226.13Z" fill="#30b2c3" stroke="#30b2c3" stroke-width="10" stroke-linejoin="round"/>
-<path d="M747.02,391.74A264,264 0 0 1 774.45,540.60L722.75,534.97A212,212 0 0 0 700.73,415.42Z" fill="#2dc2d7" stroke="#2dc2d7" stroke-width="10" stroke-linejoin="round"/>
-<path d="M798.65,365.31A322,322 0 0 1 833.19,489.19L797.28,491.74A286,286 0 0 0 766.60,381.71Z" fill="#2ca3b3" stroke="#2ca3b3" stroke-width="10" stroke-linejoin="round"/>
-<path d="M772.29,556.12A264,264 0 0 1 739.00,646.78L694.29,620.24A212,212 0 0 0 721.02,547.43Z" fill="#25b1c5" stroke="#25b1c5" stroke-width="10" stroke-linejoin="round"/>
-<path d="M669.33,618.52A190,190 0 0 1 425.45,681.14L455.51,622.39A124,124 0 0 0 614.68,581.52Z" fill="#6496e1" stroke="#6496e1" stroke-width="10" stroke-linejoin="round"/>
-<path d="M730.61,660.01A264,264 0 0 1 546.28,773.77L539.52,722.21A212,212 0 0 0 687.55,630.86Z" fill="#427fdb" stroke="#427fdb" stroke-width="10" stroke-linejoin="round"/>
-<path d="M778.64,692.53A322,322 0 0 1 632.49,810.61L619.02,777.22A286,286 0 0 0 748.83,672.34Z" fill="#306bc3" stroke="#306bc3" stroke-width="10" stroke-linejoin="round"/>
-<path d="M530.69,775.34A264,264 0 0 1 391.74,747.02L415.42,700.73A212,212 0 0 0 527.01,723.47Z" fill="#2d71d7" stroke="#2d71d7" stroke-width="10" stroke-linejoin="round"/>
-<path d="M415.57,675.71A190,190 0 0 1 322.08,517.64L388.05,515.68A124,124 0 0 0 449.07,618.84Z" fill="#9464e1" stroke="#9464e1" stroke-width="10" stroke-linejoin="round"/>
-<path d="M378.01,739.47A264,264 0 0 1 281.64,640.96L327.01,615.56A212,212 0 0 0 404.40,694.67Z" fill="#7c42db" stroke="#7c42db" stroke-width="10" stroke-linejoin="round"/>
-<path d="M348.57,789.44A322,322 0 0 1 260.58,713.17L288.69,690.68A286,286 0 0 0 366.84,758.43Z" fill="#6830c3" stroke="#6830c3" stroke-width="10" stroke-linejoin="round"/>
-<path d="M274.40,627.07A264,264 0 0 1 248.12,519.83L300.09,518.29A212,212 0 0 0 321.20,604.40Z" fill="#6d2dd7" stroke="#6d2dd7" stroke-width="10" stroke-linejoin="round"/>
-<path d="M222.20,652.35A322,322 0 0 1 194.33,564.65L229.85,558.77A286,286 0 0 0 254.60,636.66Z" fill="#602cb3" stroke="#602cb3" stroke-width="10" stroke-linejoin="round"/>
-<path d="M322.08,506.36A190,190 0 0 1 386.60,369.26L430.16,418.84A124,124 0 0 0 388.05,508.32Z" fill="#e164a0" stroke="#e164a0" stroke-width="10" stroke-linejoin="round"/>
-<path d="M248.12,504.17A264,264 0 0 1 337.76,313.67L372.08,352.73A212,212 0 0 0 300.09,505.71Z" fill="#db428b" stroke="#db428b" stroke-width="10" stroke-linejoin="round"/>
-<path d="M190.14,502.45A322,322 0 0 1 246.91,329.21L276.55,349.65A286,286 0 0 0 226.13,503.52Z" fill="#c33077" stroke="#c33077" stroke-width="10" stroke-linejoin="round"/>
-<path d="M395.29,362.07A190,190 0 0 1 506.36,322.08L508.32,388.05A124,124 0 0 0 435.83,414.15Z" fill="#e1a864" stroke="#e1a864" stroke-width="10" stroke-linejoin="round"/>
-<path d="M349.83,303.68A264,264 0 0 1 432.44,260.27L448.11,309.86A212,212 0 0 0 381.77,344.71Z" fill="#db9442" stroke="#db9442" stroke-width="10" stroke-linejoin="round"/>
-<path d="M447.51,256.00A264,264 0 0 1 504.17,248.12L505.71,300.09A212,212 0 0 0 460.21,306.42Z" fill="#d7882d" stroke="#d7882d" stroke-width="10" stroke-linejoin="round"/>
-<path d="M433.34,199.76A322,322 0 0 1 477.59,191.84L481.43,227.64A286,286 0 0 0 442.13,234.67Z" fill="#b3752c" stroke="#b3752c" stroke-width="10" stroke-linejoin="round"/></g>
- <circle cx="512" cy="512" r="96" fill="url(#core)"/>
- <rect x="100" y="100" width="824" height="412" fill="url(#sheen)"/>
-</g>
-<rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+ <defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+   <stop offset="0" stop-color="#6d6af5"/><stop offset="1" stop-color="#4338ca"/>
+  </linearGradient>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+   <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.28"/>
+  </filter>
+ </defs>
+ <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>
+  <path d="M521.16,302.20A210,210 0 1 1 448.85,712.28" fill="none" stroke="#fff" stroke-opacity="1.0" stroke-width="130"/>
+  <path d="M431.64,706.01A210,210 0 0 1 311.72,448.85" fill="none" stroke="#fff" stroke-opacity="0.7" stroke-width="130"/>
+  <path d="M317.99,431.64A210,210 0 0 1 399.17,334.89" fill="none" stroke="#fff" stroke-opacity="0.45" stroke-width="130"/>
+  <path d="M415.03,325.73A210,210 0 0 1 502.84,302.20" fill="none" stroke="#fff" stroke-opacity="0.22" stroke-width="130"/>
 </svg>

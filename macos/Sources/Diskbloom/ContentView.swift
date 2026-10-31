@@ -13,7 +13,7 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 switch model.phase {
                 case .idle:
-                    EmptyState()
+                    if let place = model.selected { PlaceOverview(place: place) } else { EmptyState() }
                 case .scanning(let path, let scanned):
                     ScanningView(path: path, scanned: scanned)
                 case .failed(let msg):
@@ -36,6 +36,8 @@ struct ContentView: View {
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup {
             if case .ready = model.phase {
+                Button { model.showOverview() } label: { Label("Pregled diska", systemImage: "square.grid.2x2") }
+                    .help("Nazad na pregled i akcije za ovaj disk")
                 Button { model.zoomOut() } label: { Label("Nazad", systemImage: "chevron.left") }
                     .disabled(model.crumbs.count < 2)
                 Button { model.showCleaner = true } label: { Label("Smart Clean", systemImage: "sparkles") }
@@ -60,17 +62,21 @@ struct VolumeInfo: Identifiable {
     let name: String
     let total: Int
     let free: Int
+    let ejectable: Bool
     var id: URL { url }
+    var place: AppModel.Place { AppModel.Place(url: url, name: name, icon: url.path == "/" ? "internaldrive" : "externaldrive", isVolume: true) }
 
     static func all() -> [VolumeInfo] {
-        let keys: [URLResourceKey] = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey]
+        let keys: [URLResourceKey] = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
+                                      .volumeIsEjectableKey, .volumeIsRemovableKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys,
                                                          options: [.skipHiddenVolumes]) ?? []
         return urls.compactMap { url in
             guard let v = try? url.resourceValues(forKeys: Set(keys)),
                   let total = v.volumeTotalCapacity, total > 0 else { return nil }
             return VolumeInfo(url: url, name: v.volumeName ?? url.lastPathComponent,
-                              total: total, free: v.volumeAvailableCapacity ?? 0)
+                              total: total, free: v.volumeAvailableCapacity ?? 0,
+                              ejectable: url.path != "/" && (v.volumeIsEjectable == true || v.volumeIsRemovable == true))
         }
     }
 }
@@ -79,18 +85,32 @@ struct VolumesSidebar: View {
     @EnvironmentObject var model: AppModel
     @State private var volumes = VolumeInfo.all()
 
+    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let folders: [AppModel.Place] = [
+        .folder(home, name: "Home", icon: "house"),
+        .folder(home.appendingPathComponent("Desktop"), name: "Desktop", icon: "menubar.dock.rectangle"),
+        .folder(home.appendingPathComponent("Documents"), name: "Documents", icon: "doc.text"),
+        .folder(home.appendingPathComponent("Downloads"), name: "Downloads", icon: "arrow.down.circle"),
+        .folder(home.appendingPathComponent("Library"), name: "Library", icon: "building.columns"),
+        .folder(URL(fileURLWithPath: "/Applications"), name: "Applications", icon: "square.grid.2x2"),
+    ]
+
     var body: some View {
-        List {
+        // Izvorna selekcija liste: klik oznaci red i otvori pregled sa akcijama.
+        List(selection: Binding(get: { model.selected }, set: { if let p = $0 { model.select(p) } })) {
             Section("Diskovi") {
                 ForEach(volumes) { v in
-                    Button { model.scan(v.url) } label: { VolumeRow(volume: v) }
-                        .buttonStyle(.plain)
+                    VolumeRow(volume: v)
+                        .tag(v.place)
+                        .contextMenu { PlaceMenu(place: v.place, ejectable: v.ejectable) }
                 }
             }
             Section("Folderi") {
-                folder("Home", FileManager.default.homeDirectoryForCurrentUser, "house")
-                folder("Downloads", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads"), "arrow.down.circle")
-                folder("Library", FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library"), "building.columns")
+                ForEach(Self.folders) { f in
+                    Label(f.name, systemImage: f.icon)
+                        .tag(f)
+                        .contextMenu { PlaceMenu(place: f, ejectable: false) }
+                }
             }
         }
         .listStyle(.sidebar)
@@ -101,9 +121,22 @@ struct VolumesSidebar: View {
             volumes = VolumeInfo.all()
         }
     }
+}
 
-    private func folder(_ title: String, _ url: URL, _ icon: String) -> some View {
-        Button { model.scan(url) } label: { Label(title, systemImage: icon) }.buttonStyle(.plain)
+/// Desni klik na disk/folder u sidebar-u.
+struct PlaceMenu: View {
+    @EnvironmentObject var model: AppModel
+    let place: AppModel.Place
+    let ejectable: Bool
+
+    var body: some View {
+        Button("Skeniraj") { model.scan(place) }
+        Button("Smart Clean") { model.scan(place, clean: true) }
+        Divider()
+        Button("Prikazi u Finder-u") { model.revealInFinder(url: place.url) }
+        if ejectable {
+            Button("Izbaci") { model.eject(place) }
+        }
     }
 }
 
@@ -146,7 +179,7 @@ struct ContentUnavailable: View {
 struct EmptyState: View {
     var body: some View {
         ContentUnavailable(title: "Diskbloom",
-                           message: "Izaberi disk ili folder levo da vidis sta zauzima prostor.",
+                           message: "Izaberi disk ili folder levo.",
                            symbol: "circle.hexagongrid")
     }
 }
@@ -281,35 +314,45 @@ struct ChildRow: View {
         let collected = model.isCollected(node.id)
         let highlighted = hover || (model.hovered?.id == node.id)
 
+        // Ceo red je dugme: klik na folder ulazi u njega.
+        // (.onTapGesture + .draggable na macOS-u: drag "proguta" klik.)
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 10, height: 10)
-            Image(systemName: node.isDir ? "folder.fill" : "doc")
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(node.displayName)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .strikethrough(collected)
-                    .foregroundStyle(collected ? .secondary : .primary)
-                // traka: koliki deo trenutnog foldera zauzima
-                GeometryReader { g in
-                    Capsule().fill(Color.primary.opacity(0.06))
-                        .overlay(alignment: .leading) {
-                            Capsule().fill(color.opacity(0.85))
-                                .frame(width: max(2, g.size.width * fraction))
+            Button(action: open) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 10, height: 10)
+                    Image(systemName: node.isDir ? "folder.fill" : "doc")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(node.displayName)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .strikethrough(collected)
+                            .foregroundStyle(collected ? .secondary : .primary)
+                        // traka: koliki deo trenutnog foldera zauzima
+                        GeometryReader { g in
+                            Capsule().fill(Color.primary.opacity(0.06))
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(color.opacity(0.85))
+                                        .frame(width: max(2, g.size.width * fraction))
+                                }
                         }
+                        .frame(height: 3)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(Fmt.bytes(node.size)).monospacedDigit()
+                        Text(AppModel.percent(node.size, of: total))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 76, alignment: .trailing)
                 }
-                .frame(height: 3)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            VStack(alignment: .trailing, spacing: 1) {
-                Text(Fmt.bytes(node.size)).monospacedDigit()
-                Text(AppModel.percent(node.size, of: total))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 76, alignment: .trailing)
+            .buttonStyle(.plain)
+            .onDrag { NSItemProvider(object: String(node.id) as NSString) }
+
             Button { model.toggleCollect(node.id) } label: {
                 Image(systemName: collected ? "trash.slash" : "trash")
                     .foregroundStyle(collected ? Color.red : Color.secondary)
@@ -327,14 +370,17 @@ struct ChildRow: View {
                 .fill(highlighted ? Color.primary.opacity(0.07) : .clear)
                 .padding(.horizontal, 4)
         )
-        .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { if node.hasChildren { model.zoom(to: node.id) } }
-        .draggable(String(node.id))
+        .help("\(node.displayName) — \(Fmt.bytes(node.size)) (\(AppModel.percent(node.size, of: total)))")
         .contextMenu {
-            if node.hasChildren { Button("Otvori") { model.zoom(to: node.id) } }
+            if node.hasChildren { Button("Otvori") { open() } }
             Button(collected ? "Izbaci iz korpe" : "Dodaj u korpu") { model.toggleCollect(node.id) }
             Button("Prikazi u Finder-u") { model.revealInFinder(node.id) }
         }
+    }
+
+    /// Folder: udji u njega. Fajl: prikazi ga u Finder-u.
+    private func open() {
+        if node.hasChildren { model.zoom(to: node.id) } else { model.revealInFinder(node.id) }
     }
 }

@@ -19,6 +19,20 @@ final class AppModel: ObservableObject {
         let size: UInt64
     }
 
+    /// Disk ili folder izabran u sidebar-u.
+    struct Place: Identifiable, Hashable {
+        let url: URL
+        let name: String
+        let icon: String
+        let isVolume: Bool
+        var id: URL { url }
+        var isBootVolume: Bool { isVolume && url.path == "/" }
+
+        static func folder(_ url: URL, name: String? = nil, icon: String = "folder") -> Place {
+            Place(url: url, name: name ?? FileManager.default.displayName(atPath: url.path), icon: icon, isVolume: false)
+        }
+    }
+
     nonisolated static let rings: UInt32 = 6
     nonisolated static let minFraction = 0.003
 
@@ -34,16 +48,40 @@ final class AppModel: ObservableObject {
     @Published private(set) var hiddenSpace: UInt64 = 0
     @Published var showCleaner = false
     @Published var alert: String?
+    @Published var selected: Place?
+    /// Za koje mesto je `tree` (poslednje skeniranje) i kada.
+    @Published private(set) var scannedPlace: Place?
+    @Published private(set) var scannedAt: Date?
 
     private var job: ScanJob?
+    private var cleanAfterScan = false
 
     var focusInfo: NodeInfo? { tree?.info(id: focus) }
     var collectorTotal: UInt64 { collector.reduce(0) { $0 + $1.size } }
 
     // MARK: Skeniranje
 
-    func scan(_ url: URL) {
+    /// Klik na disk/folder u sidebar-u: prikazuje pregled sa akcijama, ne skenira odmah.
+    func select(_ place: Place) {
+        if case .scanning = phase { cancel() }
+        selected = place
+        phase = (scannedPlace == place && tree != nil) ? .ready : .idle
+    }
+
+    func showOverview() { phase = .idle }
+
+    func showResults() { if tree != nil { phase = .ready } }
+
+    func scan(_ place: Place, clean: Bool = false) {
+        selected = place
+        scan(place.url, clean: clean)
+    }
+
+    func scan(_ url: URL, clean: Bool = false) {
         cancel()
+        cleanAfterScan = clean
+        if selected?.url != url { selected = .folder(url) }
+        let place = selected
         let path = Self.scanRoot(for: url)
         let job: ScanJob
         do { job = try ScanJob(path: path) } catch {
@@ -70,10 +108,14 @@ final class AppModel: ObservableObject {
                 switch result {
                 case .success(let tree):
                     self.tree = tree
+                    self.scannedPlace = place
+                    self.scannedAt = Date()
                     self.inaccessible = job.errors()
                     self.hiddenSpace = Self.hiddenSpace(scanned: url, tree: tree)
                     self.phase = .ready
                     self.zoom(to: tree.root())
+                    if self.cleanAfterScan { self.showCleaner = true }
+                    self.cleanAfterScan = false
                     // CI screenshot: pokazi korpu sa jednom stavkom
                     if ProcessInfo.processInfo.environment["DISKBLOOM_DEMO"] != nil,
                        let first = self.children.first {
@@ -151,8 +193,13 @@ final class AppModel: ObservableObject {
 
     /// Za CI screenshot / brzo testiranje: DISKBLOOM_SCAN=/neki/folder skenira odmah.
     func autoScanFromEnvironment() {
-        if let p = ProcessInfo.processInfo.environment["DISKBLOOM_SCAN"], !p.isEmpty {
+        let env = ProcessInfo.processInfo.environment
+        if let p = env["DISKBLOOM_SCAN"], !p.isEmpty {
             scan(URL(fileURLWithPath: p))
+        } else if env["DISKBLOOM_OVERVIEW"] != nil {
+            let root = URL(fileURLWithPath: "/")
+            let name = (try? root.resourceValues(forKeys: [.volumeNameKey]))?.volumeName ?? "Macintosh HD"
+            select(Place(url: root, name: name, icon: "internaldrive", isVolume: true))
         }
     }
 
@@ -220,6 +267,45 @@ final class AppModel: ObservableObject {
 
     func trashCollector() {
         trash(collector.map { (id: $0.id, path: $0.path) })
+    }
+
+    // MARK: Akcije nad diskom
+
+    func revealInFinder(url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func eject(_ place: Place) {
+        do {
+            try NSWorkspace.shared.unmountAndEjectDevice(at: place.url)
+            if selected == place { selected = nil; phase = .idle }
+        } catch {
+            alert = "Disk nije moguce izbaciti: \(error.localizedDescription)"
+        }
+    }
+
+    func openStorageSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Velicina ~/.Trash preko Rust skenera (nil ako nema dozvole, npr. bez Full Disk Access).
+    nonisolated static func trashSize() async -> UInt64? {
+        let trash = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash").path
+        return await Task.detached(priority: .utility) { () -> UInt64? in
+            guard let job = try? ScanJob(path: trash), let tree = try? job.run(), job.errors() == 0 else { return nil }
+            return tree.info(id: tree.root())?.size
+        }.value
+    }
+
+    /// Prazni Trash preko Finder-a (macOS jednom pita za dozvolu za Automation).
+    func emptyTrash() {
+        var error: NSDictionary?
+        NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&error)
+        if let error {
+            alert = "Trash nije ispraznjen: \(error[NSAppleScript.errorMessage] ?? "nepoznata greska")"
+        }
     }
 
     func openFullDiskAccessSettings() {

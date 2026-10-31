@@ -38,16 +38,28 @@ jobs:
         with:
           name: Diskbloom-macos
           path: macos/build/Diskbloom.zip
-      - name: Screenshot (smoke test)
+      - name: Screenshots (smoke test)
         run: |
-          DISKBLOOM_DEMO=1 DISKBLOOM_SCAN="$HOME" macos/build/Diskbloom.app/Contents/MacOS/Diskbloom &
-          APP_PID=$!
+          APP=macos/build/Diskbloom.app
+          OUT=macos/build/shots; mkdir -p $OUT
+          # 1) pregled diska sa akcijama
+          open --env DISKBLOOM_OVERVIEW=1 "$APP"
+          sleep 12
+          pgrep -x Diskbloom   # app se nije srusila
+          screencapture -x $OUT/1-overview.png
+          pkill -x Diskbloom; sleep 2
+          # 2) skeniranje + korpa
+          open --env DISKBLOOM_DEMO=1 --env DISKBLOOM_SCAN="$HOME" "$APP"
           sleep 45
-          kill -0 "$APP_PID"   # app se nije srusila
-          screencapture -x macos/build/screenshot.png
-          kill "$APP_PID" || true
+          pgrep -x Diskbloom
+          screencapture -x $OUT/2-map.png
+          # 3) klik na drugi folder u listi desno -> treba da udje u njega
+          swift macos/ci/click.swift 800 202 || true
+          sleep 3
+          screencapture -x $OUT/3-after-click.png
+          pkill -x Diskbloom || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshot
-          path: macos/build/screenshot.png
+          name: screenshots
+          path: macos/build/shots
