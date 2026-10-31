@@ -73,7 +73,7 @@ extension AppModel {
         let udids = sims.map { URL(fileURLWithPath: $0.path).lastPathComponent }
         let r = await Shell.run("/usr/bin/xcrun", ["simctl", "delete"] + udids)
         if r.ok {
-            for s in sims { tree.remove(id: s.id) }
+            for s in sims { _ = tree.remove(id: s.id) }
             zoom(to: tree.isAttached(id: focus) ? focus : tree.root())
         } else {
             alert = String(localized: "Could not delete simulators (is Xcode installed?):\n\(r.output)")
