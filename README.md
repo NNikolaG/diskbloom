@@ -53,8 +53,8 @@ yourself. Both take a few minutes.
 ### Option A: download a release
 
 1. Download the latest **Diskbloom-x.y.z.dmg** from
-   [Releases](https://github.com/NNikolaG/diskbloom/releases/latest). It is a universal app
-   for Apple Silicon and Intel.
+   [Releases](https://github.com/NNikolaG/diskbloom/releases/latest). Release builds are for
+   Apple Silicon Macs (M1 or newer); on an Intel Mac, build from source (Option B).
 2. Open the DMG and drag **Diskbloom** to **Applications**.
 3. The app is not notarized by Apple, so macOS blocks it on first launch. Either
    right-click the app → **Open** → **Open**, or run:
@@ -191,7 +191,7 @@ a language means copying `sr.lproj` and translating the right-hand side.
 
 ## Releasing
 
-Push a tag and GitHub Actions builds a universal DMG and publishes the release (free for
+Push a tag and GitHub Actions builds an Apple Silicon DMG and publishes the release (free for
 public repositories):
 
 ```bash

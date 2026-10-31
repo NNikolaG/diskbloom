@@ -1,7 +1,7 @@
 name: Release
 
 # Pokrece se na tag "v*" (npr. git tag v0.2.0 && git push origin v0.2.0).
-# Pravi univerzalni (Apple Silicon + Intel) Diskbloom.dmg i objavljuje GitHub Release.
+# Pravi Diskbloom.dmg za Apple Silicon i objavljuje GitHub Release.
 # Besplatno za javne repoe; app nije notarizovan (nema Apple Developer naloga).
 
 on:
@@ -19,11 +19,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
-      - name: Build universal app
-        run: ./macos/build.sh --universal
+      - name: Build app (Apple Silicon)
+        run: ./macos/build.sh
       - name: Make DMG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -51,4 +49,4 @@ jobs:
                ```
             3. For a complete scan, allow **Full Disk Access** in System Settings → Privacy & Security.
 
-            Works on macOS 13 Ventura or newer, Apple Silicon and Intel.
+            Works on macOS 13 Ventura or newer, Macs with Apple Silicon (M1 or newer).
