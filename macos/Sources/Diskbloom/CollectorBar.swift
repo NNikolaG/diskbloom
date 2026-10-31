@@ -15,23 +15,23 @@ struct CollectorBar: View {
             HStack(spacing: 8) {
                 Image(systemName: model.collector.isEmpty ? "trash" : "trash.fill")
                     .foregroundStyle(model.collector.isEmpty ? Color.secondary : Color.red)
-                Text("Za brisanje").font(.headline)
+                Text("Trash list").font(.headline)
                 if model.collector.isEmpty {
-                    Text("Prevuci folder ovde ili klikni 🗑 pored stavke u listi")
+                    Text("Drag items here, or click 🗑 next to any item")
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text("\(model.collector.count) stavki · \(Fmt.bytes(model.collectorTotal))")
+                    Text("\(Fmt.count(UInt64(model.collector.count))) items · \(Fmt.bytes(model.collectorTotal))")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 if !model.collector.isEmpty {
-                    Button("Isprazni") { model.collector = [] }
+                    Button("Clear") { model.collector = [] }
                     if let p = model.trashProgress {
                         ProgressView(value: Double(p.done), total: Double(max(p.total, 1))).frame(width: 120)
                     }
-                    Button("Premesti u Trash…") { confirm = true }
+                    Button("Move to Trash…") { confirm = true }
                         .disabled(model.trashProgress != nil)
                         .keyboardShortcut(.delete, modifiers: .command)
                         .buttonStyle(.borderedProminent)
@@ -66,11 +66,11 @@ struct CollectorBar: View {
             for id in ids.compactMap({ UInt32($0) }) { model.collect(id) }
             return true
         } isTargeted: { targeted = $0 }
-        .confirmationDialog("Premestiti \(model.collector.count) stavki (\(Fmt.bytes(model.collectorTotal))) u Trash?",
+        .confirmationDialog("Move \(Fmt.count(UInt64(model.collector.count))) items (\(Fmt.bytes(model.collectorTotal))) to the Trash?",
                             isPresented: $confirm) {
-            Button("Premesti u Trash", role: .destructive) { model.trashCollector() }
+            Button("Move to Trash", role: .destructive) { model.trashCollector() }
         } message: {
-            Text("Stavke mozes vratiti iz Trash-a dok ga ne ispraznis.")
+            Text("You can put items back from the Trash until you empty it.")
         }
     }
 }

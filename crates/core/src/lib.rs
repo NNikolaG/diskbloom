@@ -2,6 +2,7 @@
 //! i pravila za ciscenje regenerisivog smeca. Vidi `docs/ARCHITECTURE.md`.
 
 pub mod clean;
+pub mod dupes;
 pub mod scan;
 pub mod tree;
 

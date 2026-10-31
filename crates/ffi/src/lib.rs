@@ -61,6 +61,32 @@ pub struct CleanCandidate {
     pub is_dir: bool,
 }
 
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct FileInfo {
+    pub id: u32,
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct DupGroupInfo {
+    /// Velicina jednog fajla.
+    pub size: u64,
+    /// Koliko bi se oslobodilo kad bi ostala jedna kopija.
+    pub wasted: u64,
+    pub files: Vec<FileInfo>,
+}
+
+fn file_info(t: &dc::Tree, id: u32) -> Option<FileInfo> {
+    t.get(id).map(|e| FileInfo {
+        id,
+        name: e.name.clone(),
+        path: t.path(id).to_string_lossy().into_owned(),
+        size: e.size,
+    })
+}
+
 /// Jedno skeniranje. `run` blokira (pozvati van main niti);
 /// `scanned`/`cancel` su bezbedni iz drugih niti dok `run` traje.
 #[derive(uniffi::Object)]
@@ -213,6 +239,82 @@ impl DiskTree {
     pub fn remove(&self, id: u32) -> u64 {
         self.inner.write().unwrap().remove(id)
     }
+
+    pub fn is_attached(&self, id: u32) -> bool {
+        self.inner.read().unwrap().is_attached(id)
+    }
+
+    /// Ponovo skenira samo ovaj folder i ubacuje rezultat u stablo. Vraca novi ID.
+    /// Blokira dok skenira (pozvati van main niti); stablo je zakljucano samo pri ubacivanju.
+    pub fn rescan(&self, id: u32) -> Result<u32, BloomError> {
+        let path = self.inner.read().unwrap().path(id);
+        let scanner = dc::Scanner::new(&path, false)?;
+        let node = scanner.scan(&path)?;
+        Ok(self.inner.write().unwrap().replace_subtree(id, node))
+    }
+
+    /// Najveci fajlovi na celom disku/folderu.
+    pub fn largest_files(&self, limit: u32, min_size: u64) -> Vec<FileInfo> {
+        let t = self.inner.read().unwrap();
+        t.largest_files(limit as usize, min_size)
+            .into_iter()
+            .filter_map(|id| file_info(&t, id))
+            .collect()
+    }
+}
+
+/// Trazenje duplikata nad vec skeniranim stablom. `run` blokira; `progress_*`/`cancel`
+/// su bezbedni iz drugih niti.
+#[derive(uniffi::Object)]
+pub struct DupeJob {
+    tree: Arc<DiskTree>,
+    min_size: u64,
+    finder: dc::dupes::DupeFinder,
+}
+
+#[uniffi::export]
+impl DupeJob {
+    #[uniffi::constructor]
+    pub fn new(tree: Arc<DiskTree>, min_size: u64) -> Arc<Self> {
+        Arc::new(Self {
+            tree,
+            min_size,
+            finder: dc::dupes::DupeFinder::new(),
+        })
+    }
+
+    pub fn run(&self) -> Result<Vec<DupGroupInfo>, BloomError> {
+        // Kopija stabla da brisanje u UI-ju ne ceka na citanje diska.
+        let snapshot = self.tree.inner.read().unwrap().clone();
+        let groups = self.finder.find(&snapshot, self.min_size);
+        if self.finder.is_cancelled() {
+            return Err(BloomError::Cancelled);
+        }
+        Ok(groups
+            .into_iter()
+            .map(|g| DupGroupInfo {
+                size: g.size,
+                wasted: g.wasted(),
+                files: g
+                    .files
+                    .iter()
+                    .filter_map(|&id| file_info(&snapshot, id))
+                    .collect(),
+            })
+            .collect())
+    }
+
+    pub fn progress_done(&self) -> u64 {
+        self.finder.done.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn progress_total(&self) -> u64 {
+        self.finder.total.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn cancel(&self) {
+        self.finder.cancel();
+    }
 }
 
 #[cfg(test)]
@@ -247,6 +349,37 @@ mod tests {
         assert!(freed >= 200_000);
         assert_eq!(tree.info(root).unwrap().size, before - freed);
         assert!(tree.clean_candidates().is_empty());
+    }
+
+    #[test]
+    fn largest_dupes_rescan() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let data = vec![9u8; 100_000];
+        std::fs::create_dir_all(r.join("x")).unwrap();
+        std::fs::write(r.join("a.bin"), &data).unwrap();
+        std::fs::write(r.join("x/b.bin"), &data).unwrap();
+        let tree = ScanJob::new(r.to_string_lossy().into_owned())
+            .unwrap()
+            .run()
+            .unwrap();
+        assert_eq!(tree.largest_files(10, 1).len(), 2);
+
+        let groups = DupeJob::new(tree.clone(), 1000).run().unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].files.len(), 2);
+        assert_eq!(groups[0].wasted, groups[0].size);
+
+        // novi fajl u x/, pa osvezi samo x/
+        std::fs::write(r.join("x/c.bin"), vec![1u8; 300_000]).unwrap();
+        let before = tree.info(tree.root()).unwrap().size;
+        let x = tree
+            .find(r.join("x").to_string_lossy().into_owned())
+            .unwrap();
+        let new_x = tree.rescan(x).unwrap();
+        assert!(tree.is_attached(new_x) && !tree.is_attached(x));
+        assert!(tree.info(tree.root()).unwrap().size >= before + 300_000);
+        assert_eq!(tree.children(new_x).len(), 2);
     }
 
     #[test]

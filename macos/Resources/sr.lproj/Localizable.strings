@@ -1,0 +1,199 @@
+/* Diskbloom: srpski (latinica). Ključ je engleski tekst iz Swift koda; %@ = umetnuta vrednost. */
+
+/* Opšte */
+"OK" = "U redu";
+"Cancel" = "Otkaži";
+"Close" = "Zatvori";
+"Open" = "Otvori";
+"Back" = "Nazad";
+"Clear" = "Isprazni";
+"None" = "Ništa";
+"All" = "Sve";
+"Something went wrong" = "Došlo je do greške";
+"Choose a disk or folder on the left." = "Izaberi disk ili folder levo.";
+"Choose folder" = "Izaberi folder";
+"Scan" = "Skeniraj";
+"Scanning %@" = "Skeniram %@";
+"%@ items" = "%@ stavki";
+"Show in Finder" = "Prikaži u Finder-u";
+"Quick Look" = "Brzi pregled";
+"Refresh" = "Osveži";
+"Refresh This Folder" = "Osveži ovaj folder";
+"Refresh this folder" = "Osveži ovaj folder";
+"Rescan only this folder" = "Ponovo skeniraj samo ovaj folder";
+"Refresh failed: %@" = "Osvežavanje nije uspelo: %@";
+"View" = "Prikaz";
+"Map" = "Mapa";
+"Largest files" = "Najveći fajlovi";
+"Largest Files" = "Najveći fajlovi";
+"Duplicates" = "Duplikati";
+"Map, largest files or duplicates" = "Mapa, najveći fajlovi ili duplikati";
+"Disk overview" = "Pregled diska";
+"Back to the overview and actions for this disk" = "Nazad na pregled i akcije za ovaj disk";
+"Smart Clean…" = "Smart Clean…";
+"Scan Home" = "Skeniraj Home";
+
+/* Sidebar */
+"Disks" = "Diskovi";
+"Folders" = "Folderi";
+"Eject" = "Izbaci";
+"%@ free of %@" = "%@ slobodno od %@";
+
+/* Rezultat */
+"%@ folders could not be read. Give Diskbloom Full Disk Access to see everything." = "%@ foldera nije moguće pročitati. Daj Diskbloom-u pun pristup disku da vidiš sve.";
+"Open Settings" = "Otvori podešavanja";
+"%@ · %@ files" = "%@ · %@ fajlova";
+"· %@ of %@" = "· %@ od %@";
+"%@ of %@" = "%@ od %@";
+"Hidden space: %@" = "Skriveni prostor: %@";
+"Used on the volume but not visible to the scan: system volume, snapshots, folders without permission." = "Zauzeto na disku, ali skeneru nevidljivo: sistemski volumen, snapshot-i, folderi bez dozvole.";
+"click to go back" = "klik za nazad";
+"Add to Trash list" = "Dodaj u listu za brisanje";
+"Remove from Trash list" = "Izbaci iz liste za brisanje";
+
+/* Lista za brisanje */
+"Trash list" = "Za brisanje";
+"Drag items here, or click 🗑 next to any item" = "Prevuci stavke ovde ili klikni 🗑 pored stavke";
+"%@ items · %@" = "%@ stavki · %@";
+"Move to Trash…" = "Premesti u Otpad…";
+"Move to Trash" = "Premesti u Otpad";
+"Move %@ items (%@) to the Trash?" = "Premestiti %@ stavki (%@) u Otpad?";
+"You can put items back from the Trash until you empty it." = "Stavke možeš da vratiš iz Otpada dok ga ne isprazniš.";
+"Could not move %@ items to the Trash:" = "Nije moguće premestiti %@ stavki u Otpad:";
+
+/* Pregled diska */
+"Used" = "Zauzeto";
+"used" = "zauzeto";
+"Purgeable" = "Purgeable";
+"Free" = "Slobodno";
+"Total" = "Ukupno";
+"Last scanned: %@" = "Poslednje skeniranje: %@";
+"Show map" = "Prikaži mapu";
+"Result of the last scan" = "Rezultat poslednjeg skeniranja";
+"Scan disk" = "Skeniraj disk";
+"Scan folder" = "Skeniraj folder";
+"Map of everything that takes up space" = "Mapa svega što zauzima prostor";
+"Smart Clean" = "Smart Clean";
+"Build folders, caches, simulators, VMs…" = "Build folderi, keševi, simulatori, VM-ovi…";
+"Scan Home only" = "Skeniraj samo Home";
+"Faster, only your files" = "Brže, samo tvoji fajlovi";
+"Time Machine snapshots" = "Time Machine snapshot-i";
+"Checking…" = "Proveravam…";
+"No local snapshots" = "Nema lokalnih snapshot-a";
+"%@ local snapshots" = "Lokalnih snapshot-a: %@";
+"Empty Trash" = "Isprazni Otpad";
+"Calculating size…" = "Računam veličinu…";
+"Trash is empty" = "Otpad je prazan";
+"Free %@" = "Oslobodi %@";
+"Size unknown (needs Full Disk Access)" = "Veličina nepoznata (treba pun pristup disku)";
+"macOS Storage" = "macOS skladište";
+"System storage settings" = "Sistemska podešavanja skladišta";
+"Full Disk Access" = "Pun pristup disku";
+"Permission to see the whole disk" = "Dozvola da se vidi ceo disk";
+"Eject disk" = "Izbaci disk";
+"Safely remove this volume" = "Bezbedno ukloni ovaj volumen";
+"Permanently delete everything in the Trash?" = "Trajno obrisati sve iz Otpada?";
+"This cannot be undone." = "Ovo ne može da se poništi.";
+"Could not empty the Trash: %@" = "Otpad nije ispražnjen: %@";
+"Could not eject the disk: %@" = "Disk nije moguće izbaciti: %@";
+
+/* Time Machine */
+"Time Machine local snapshots" = "Lokalni Time Machine snapshot-i";
+"Time Machine keeps hourly snapshots on this disk while your backup drive is away. macOS frees them when space runs low, but they often hold tens of gigabytes. Your backups on the Time Machine drive are not affected." = "Dok backup disk nije povezan, Time Machine svakog sata pravi snapshot na ovom disku. macOS ih briše tek kad ponestane mesta, a često zauzimaju desetine gigabajta. Backup-i na Time Machine disku ostaju netaknuti.";
+"There is nothing to remove." = "Nema šta da se ukloni.";
+"Delete selected…" = "Obriši izabrane…";
+"Delete all" = "Obriši sve";
+"Time Machine" = "Time Machine";
+"System snapshot, managed by macOS" = "Sistemski snapshot, njime upravlja macOS";
+"Could not delete snapshots:\n%@" = "Snapshot-e nije moguće obrisati:\n%@";
+
+/* Smart Clean */
+"Found %@ in %@ categories" = "Pronađeno %@ u %@ kategorija";
+"Only safe" = "Samo bezbedno";
+"All clean" = "Sve je čisto";
+"Nothing to clean up here." = "Ovde nema šta da se očisti.";
+"Safe to remove" = "Bezbedno za brisanje";
+"Rebuilt or re-downloaded automatically: builds, caches, logs." = "Samo se ponovo pravi ili preuzima: build-ovi, keševi, logovi.";
+"Review before removing" = "Pogledaj pre brisanja";
+"Emulators, virtual machines, backups, installers." = "Emulatori, virtuelne mašine, backup-i, instaleri.";
+"Looking for things to clean up…" = "Tražim šta može da se očisti…";
+"… and %@ more (%@). Checking the category includes them too." = "… i još %@ (%@). Čekiranje kategorije uključuje i njih.";
+"Clean up %@ items (%@)?" = "Očistiti %@ stavki (%@)?";
+"Clean up" = "Očisti";
+"Clean up…" = "Očisti…";
+"Files go to the Trash, so you can put them back. Simulators are deleted with Xcode's simctl." = "Fajlovi idu u Otpad, pa mogu da se vrate. Simulatori se brišu Xcode-ovim alatom simctl.";
+"Moving to Trash… %@/%@" = "Premeštam u Otpad… %@/%@";
+"Selected: %@ · %@" = "Izabrano: %@ · %@";
+"Delete all unavailable simulators" = "Obriši sve nedostupne simulatore";
+"Simulators for iOS versions that are no longer installed (xcrun simctl delete unavailable)" = "Simulatori za iOS verzije koje više nisu instalirane (xcrun simctl delete unavailable)";
+"Clean up in Docker…" = "Očisti u Docker-u…";
+"The Docker disk image must not be deleted while Docker uses it. This runs docker system prune instead." = "Docker disk se ne sme brisati dok ga Docker koristi. Umesto toga pokreće se docker system prune.";
+"Remove unused Docker data?" = "Obrisati nekorišćene Docker podatke?";
+"Run docker system prune" = "Pokreni docker system prune";
+"Deletes stopped containers, unused images, networks and build cache. Running containers and volumes are kept. Docker must be running." = "Briše zaustavljene kontejnere, nekorišćene image-e, mreže i build keš. Pokrenuti kontejneri i volume-i ostaju. Docker mora da radi.";
+"Could not delete simulators (is Xcode installed?):\n%@" = "Simulatore nije moguće obrisati (da li je Xcode instaliran?):\n%@";
+"Docker command line tool not found. Open Docker Desktop and use Troubleshoot → Clean / Purge data." = "Docker alat za komandnu liniju nije pronađen. Otvori Docker Desktop i koristi Troubleshoot → Clean / Purge data.";
+"docker system prune failed (is Docker running?):\n%@" = "docker system prune nije uspeo (da li Docker radi?):\n%@";
+
+/* Kategorije */
+"Rust build" = "Rust build";
+"target/, rebuilt by cargo build" = "target/, cargo build ga pravi ponovo";
+"node_modules" = "node_modules";
+"Restored by npm / yarn install" = "npm / yarn install ih vraća";
+"JS build cache" = "JS build keš";
+"Python cache" = "Python keš";
+"Python virtualenvs" = "Python virtualenv-ovi";
+"Need pip install again after removing" = "Posle brisanja treba ponovo pip install";
+"Gradle build" = "Gradle build";
+"build/ and .gradle/ in projects" = "build/ i .gradle/ u projektima";
+"Pods/, restored by pod install" = "Pods/, pod install ih vraća";
+"Swift build" = "Swift build";
+".build/ in Swift packages" = ".build/ u Swift paketima";
+"Xcode DerivedData" = "Xcode DerivedData";
+"Rebuilt by Xcode" = "Xcode ga pravi ponovo";
+"Device Support" = "Device Support";
+"Debug symbols for older iOS versions" = "Simboli za starije verzije iOS-a";
+"Xcode archives" = "Xcode arhive";
+"Old App Store builds" = "Stari build-ovi za App Store";
+"iOS simulators" = "iOS simulatori";
+"Devices in Xcode's Simulator" = "Uređaji u Xcode simulatoru";
+"Simulator cache" = "Keš simulatora";
+"Android emulators" = "Android emulatori";
+"AVD devices" = "AVD uređaji";
+"Android system images" = "Android system image-i";
+"Downloaded again by Android Studio" = "Android Studio ih ponovo preuzima";
+"Virtual machines" = "Virtuelne mašine";
+"Package caches" = "Keševi paketa";
+"App caches" = "Keševi aplikacija";
+"Logs" = "Logovi";
+"iPhone / iPad backups" = "iPhone / iPad backup-i";
+"Check that you don't need them" = "Proveri da ti ne trebaju";
+"Installers" = "Instaleri";
+".dmg, .pkg, .iso in Downloads" = ".dmg, .pkg, .iso u Downloads";
+"Trash" = "Otpad";
+"Files you already deleted" = "Fajlovi koje si već obrisao";
+
+/* Najveći fajlovi */
+"%@ files · %@" = "%@ fajlova · %@";
+"Not opened in 6 months" = "Neotvarano 6 meseci";
+"Not opened in a year" = "Neotvarano godinu dana";
+"Nothing here" = "Ovde nema ničega";
+"No large files match this filter." = "Nijedan veliki fajl ne odgovara ovom filteru.";
+"never opened" = "nikad otvaran";
+"opened %@" = "otvaran %@";
+
+/* Duplikati */
+"Find duplicate files" = "Pronađi duplikate";
+"Files with identical content in different places. Only files that are the same size are read, so this is usually quick." = "Fajlovi istog sadržaja na različitim mestima. Čitaju se samo fajlovi iste veličine, pa je ovo obično brzo.";
+"Ignore files smaller than" = "Preskoči fajlove manje od";
+"Find duplicates" = "Pronađi duplikate";
+"Comparing %@ of %@ files…" = "Upoređujem %@ od %@ fajlova…";
+"%@ groups · %@ can be freed" = "%@ grupa · može da se oslobodi %@";
+"Search again" = "Traži ponovo";
+"No duplicates" = "Nema duplikata";
+"Every file here is unique." = "Svaki fajl je jedinstven.";
+"Copies made with Finder's Duplicate on APFS can share disk space, so deleting them may free less than shown." = "Kopije napravljene Finder-ovim Duplicate na APFS-u mogu da dele prostor, pa brisanje može osloboditi manje nego što piše.";
+"%@ copies · %@ each" = "%@ kopije · po %@";
+"%@ wasted" = "%@ viška";
+"Keep one" = "Zadrži jednu";
+"Keep the first copy and add the others to the Trash list" = "Zadrži prvu kopiju, a ostale dodaj u listu za brisanje";

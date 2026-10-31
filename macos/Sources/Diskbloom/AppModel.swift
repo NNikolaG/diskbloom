@@ -53,6 +53,22 @@ final class AppModel: ObservableObject {
     @Published private(set) var scannedPlace: Place?
     @Published private(set) var scannedAt: Date?
 
+    /// Prikaz rezultata: mapa, najveci fajlovi ili duplikati.
+    enum ResultMode: String, CaseIterable, Identifiable {
+        case map, largest, duplicates
+        var id: String { rawValue }
+    }
+    @Published var resultMode: ResultMode = .map
+    /// Fajl za Quick Look (razmaknica ili dugme "oko").
+    @Published var previewURL: URL?
+    /// Poslednja stavka nad kojom je bio mis (za razmaknicu = Quick Look).
+    @Published var lastHoveredID: UInt32?
+    @Published var refreshing = false
+    /// Rezultat poslednje pretrage duplikata (nil = nije pokretana za ovo skeniranje).
+    @Published var dupeGroups: [DupGroupInfo]?
+    /// Raste pri svakoj promeni stabla/fokusa; pogledi ga koriste kao `.task(id:)`.
+    @Published private(set) var dataVersion = 0
+
     private var job: ScanJob?
     private var cleanAfterScan = false
 
@@ -90,6 +106,8 @@ final class AppModel: ObservableObject {
         }
         self.job = job
         tree = nil
+        dupeGroups = nil
+        resultMode = .map
         collector = []
         segments = []
         phase = .scanning(path: path, scanned: 0)
@@ -116,6 +134,12 @@ final class AppModel: ObservableObject {
                     self.zoom(to: tree.root())
                     if self.cleanAfterScan { self.showCleaner = true }
                     self.cleanAfterScan = false
+                    // CI screenshot-ovi: izabrani prikaz
+                    switch ProcessInfo.processInfo.environment["DISKBLOOM_MODE"] {
+                    case "largest": self.resultMode = .largest
+                    case "duplicates": self.resultMode = .duplicates
+                    default: break
+                    }
                     // CI screenshot: pokazi korpu sa jednom stavkom
                     if ProcessInfo.processInfo.environment["DISKBLOOM_DEMO"] != nil,
                        let first = self.children.first {
@@ -162,6 +186,7 @@ final class AppModel: ObservableObject {
 
     func zoom(to id: UInt32) {
         guard let tree else { return }
+        dataVersion += 1
         focus = id
         hovered = nil
         segments = tree.layout(focus: id, rings: Self.rings, minFraction: Self.minFraction)
@@ -178,6 +203,13 @@ final class AppModel: ObservableObject {
     }
 
     func path(_ id: UInt32) -> String { tree?.path(id: id) ?? "" }
+
+    /// Quick Look za stavku (razmaknica ili dugme "oko"); ponovni poziv zatvara pregled.
+    func quickLook(_ id: UInt32?) {
+        guard let id, tree != nil else { return }
+        let url = URL(fileURLWithPath: path(id))
+        previewURL = previewURL == url ? nil : url
+    }
 
     /// Lepo ime: za koren prikazujemo ime volumena/foldera umesto pune putanje.
     func title(_ n: NodeInfo) -> String {
@@ -276,7 +308,7 @@ final class AppModel: ObservableObject {
         }
         if !failed.isEmpty {
             let shown = failed.prefix(8).joined(separator: "\n")
-            alert = "Nije moguce premestiti u Trash (\(failed.count)):\n" + shown + (failed.count > 8 ? "\n…" : "")
+            alert = String(localized: "Could not move \(Fmt.count(UInt64(failed.count))) items to the Trash:") + "\n" + shown + (failed.count > 8 ? "\n…" : "")
                 + (firstError.map { "\n\n" + $0 } ?? "")
         }
         let removed = Set(items.map(\.id))
@@ -317,7 +349,7 @@ final class AppModel: ObservableObject {
             try NSWorkspace.shared.unmountAndEjectDevice(at: place.url)
             if selected == place { selected = nil; phase = .idle }
         } catch {
-            alert = "Disk nije moguce izbaciti: \(error.localizedDescription)"
+            alert = String(localized: "Could not eject the disk: \(error.localizedDescription)")
         }
     }
 
@@ -341,7 +373,7 @@ final class AppModel: ObservableObject {
         var error: NSDictionary?
         NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&error)
         if let error {
-            alert = "Trash nije ispraznjen: \(error[NSAppleScript.errorMessage] ?? "nepoznata greska")"
+            alert = String(localized: "Could not empty the Trash: \(String(describing: error[NSAppleScript.errorMessage] ?? "?"))")
         }
     }
 

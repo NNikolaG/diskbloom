@@ -75,6 +75,27 @@ jobs:
           sleep 60
           pgrep -x Diskbloom
           screencapture -x $OUT/4-smart-clean.png
+          pkill -x Diskbloom || true; sleep 2
+          # 5) najveci fajlovi i duplikati (pravimo par kopija)
+          mkdir -p ~/dupes/a ~/dupes/b
+          head -c 30000000 /dev/urandom > ~/dupes/a/video.mov
+          cp ~/dupes/a/video.mov ~/dupes/b/video-copy.mov
+          cat ~/dupes/a/video.mov > ~/dupes/video-backup.mov
+          open --env DISKBLOOM_SCAN="$HOME" --env DISKBLOOM_MODE=largest "$APP"
+          sleep 50
+          pgrep -x Diskbloom
+          screencapture -x $OUT/5-largest.png
+          pkill -x Diskbloom || true; sleep 2
+          open --env DISKBLOOM_SCAN="$HOME/dupes" --env DISKBLOOM_MODE=duplicates "$APP"
+          sleep 15
+          pgrep -x Diskbloom
+          screencapture -x $OUT/6-duplicates.png
+          pkill -x Diskbloom || true; sleep 2
+          # 6) srpski jezik
+          open --env DISKBLOOM_OVERVIEW=1 "$APP" --args -AppleLanguages "(sr)"
+          sleep 12
+          pgrep -x Diskbloom
+          screencapture -x $OUT/7-overview-sr.png
           pkill -x Diskbloom || true
       - uses: actions/upload-artifact@v4
         if: always()

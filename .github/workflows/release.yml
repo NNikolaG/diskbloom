@@ -1,0 +1,54 @@
+name: Release
+
+# Pokrece se na tag "v*" (npr. git tag v0.2.0 && git push origin v0.2.0).
+# Pravi univerzalni (Apple Silicon + Intel) Diskbloom.dmg i objavljuje GitHub Release.
+# Besplatno za javne repoe; app nije notarizovan (nema Apple Developer naloga).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build universal app
+        run: ./macos/build.sh --universal
+      - name: Make DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/dmg
+          cp -R macos/build/Diskbloom.app dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname "Diskbloom $VERSION" -srcfolder dist/dmg -ov -format UDZO "dist/Diskbloom-$VERSION.dmg"
+          (cd macos/build && ditto -c -k --keepParent Diskbloom.app "../../dist/Diskbloom-$VERSION.zip")
+          shasum -a 256 dist/*.dmg dist/*.zip > dist/SHA256SUMS.txt
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            1. Download **Diskbloom-${{ github.ref_name }}.dmg** below (the version number without `v`), open it and drag **Diskbloom** to **Applications**.
+            2. Diskbloom is not notarized by Apple yet, so the first launch is blocked. Right-click the app → **Open** → **Open**, or run:
+               ```
+               xattr -dr com.apple.quarantine /Applications/Diskbloom.app
+               ```
+            3. For a complete scan, allow **Full Disk Access** in System Settings → Privacy & Security.
+
+            Works on macOS 13 Ventura or newer, Apple Silicon and Intel.

@@ -21,8 +21,26 @@ struct DiskbloomApp: App {
         .defaultSize(width: 1280, height: 820)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Skeniraj Home") { model.scan(FileManager.default.homeDirectoryForCurrentUser) }
-                    .keyboardShortcut("h", modifiers: [.command, .shift])
+                Button("Scan Home") {
+                    model.scan(.folder(FileManager.default.homeDirectoryForCurrentUser, name: "Home", icon: "house"))
+                }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+                Button("Refresh This Folder") { model.refresh() }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .disabled(model.tree == nil || model.refreshing)
+                Button("Smart Clean…") { model.showCleaner = true }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .disabled(model.tree == nil)
+            }
+            CommandGroup(after: .toolbar) {
+                Button("Quick Look") { model.quickLook(model.lastHoveredID) }
+                    .keyboardShortcut(.space, modifiers: [])
+                    .disabled(model.tree == nil)
+                Divider()
+                Button("Map") { model.resultMode = .map }.keyboardShortcut("1", modifiers: .command)
+                Button("Largest Files") { model.resultMode = .largest }.keyboardShortcut("2", modifiers: .command)
+                Button("Duplicates") { model.resultMode = .duplicates }.keyboardShortcut("3", modifiers: .command)
+                Divider()
             }
         }
     }

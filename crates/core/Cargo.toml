@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 rayon = "1"
+blake3 = "1"
 
 [dev-dependencies]
 tempfile = "3"

@@ -11,6 +11,8 @@ struct PlaceOverview: View {
     @State private var trashSize: UInt64?
     @State private var trashLoaded = false
     @State private var confirmEmptyTrash = false
+    @State private var showSnapshots = false
+    @State private var snapshotCount: Int?
 
     struct Capacity {
         let total: Int64
@@ -47,18 +49,24 @@ struct PlaceOverview: View {
         .task(id: place) {
             capacity = Capacity(url: place.url)
             if place.isBootVolume {
+                snapshotCount = await AppModel.localSnapshots().filter(\.isTimeMachine).count
                 trashLoaded = false
                 trashSize = await AppModel.trashSize()
                 trashLoaded = true
             }
         }
-        .confirmationDialog("Trajno obrisati sve iz Trash-a?", isPresented: $confirmEmptyTrash) {
-            Button("Isprazni Trash", role: .destructive) {
+        .sheet(isPresented: $showSnapshots, onDismiss: {
+            Task { snapshotCount = await AppModel.localSnapshots().filter(\.isTimeMachine).count }
+        }) {
+            SnapshotsView().environmentObject(model)
+        }
+        .confirmationDialog("Permanently delete everything in the Trash?", isPresented: $confirmEmptyTrash) {
+            Button("Empty Trash", role: .destructive) {
                 model.emptyTrash()
                 trashSize = 0
             }
         } message: {
-            Text("Ovo se ne moze vratiti.")
+            Text("This cannot be undone.")
         }
     }
 
@@ -81,15 +89,15 @@ struct PlaceOverview: View {
                 Text(place.url.path).foregroundStyle(.secondary).textSelection(.enabled)
                 if let c = capacity, place.isVolume {
                     HStack(spacing: 18) {
-                        stat("Zauzeto", Fmt.bytes(UInt64(c.used)), .accentColor)
+                        stat("Used", Fmt.bytes(UInt64(c.used)), .accentColor)
                         if c.purgeable > 0 { stat("Purgeable", Fmt.bytes(UInt64(c.purgeable)), .orange) }
-                        stat("Slobodno", Fmt.bytes(UInt64(c.available)), .secondary)
-                        stat("Ukupno", Fmt.bytes(UInt64(c.total)), .secondary)
+                        stat("Free", Fmt.bytes(UInt64(c.available)), .secondary)
+                        stat("Total", Fmt.bytes(UInt64(c.total)), .secondary)
                     }
                     .padding(.top, 4)
                 }
                 if let at = model.scannedAt, model.scannedPlace == place {
-                    Text("Poslednje skeniranje: \(at.formatted(date: .omitted, time: .shortened))")
+                    Text("Last scanned: \(at.formatted(date: .omitted, time: .shortened))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -97,7 +105,7 @@ struct PlaceOverview: View {
         }
     }
 
-    private func stat(_ title: String, _ value: String, _ color: Color) -> some View {
+    private func stat(_ title: LocalizedStringKey, _ value: String, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
                 Circle().fill(color).frame(width: 7, height: 7)
@@ -111,55 +119,63 @@ struct PlaceOverview: View {
 
     @ViewBuilder private var actions: some View {
         if model.scannedPlace == place, model.tree != nil {
-            ActionCard(icon: "chart.pie", title: "Prikazi mapu", subtitle: "Rezultat poslednjeg skeniranja", prominent: true) {
+            ActionCard(icon: "chart.pie", title: "Show map", subtitle: Text("Result of the last scan"), prominent: true) {
                 model.showResults()
             }
         }
-        ActionCard(icon: "magnifyingglass", title: place.isVolume ? "Skeniraj disk" : "Skeniraj folder",
-                   subtitle: "Mapa svega sto zauzima prostor",
+        ActionCard(icon: "magnifyingglass", title: place.isVolume ? "Scan disk" : "Scan folder",
+                   subtitle: Text("Map of everything that takes up space"),
                    prominent: model.scannedPlace != place) {
             model.scan(place)
         }
         ActionCard(icon: "sparkles", title: "Smart Clean",
-                   subtitle: "Build folderi, kesevi, node_modules…") {
+                   subtitle: Text("Build folders, caches, simulators, VMs…")) {
             model.scan(place, clean: true)
         }
         if place.isBootVolume {
-            ActionCard(icon: "house", title: "Skeniraj samo Home", subtitle: "Brze, samo tvoji fajlovi") {
+            ActionCard(icon: "house", title: "Scan Home only", subtitle: Text("Faster, only your files")) {
                 model.scan(.folder(FileManager.default.homeDirectoryForCurrentUser, name: "Home", icon: "house"))
             }
-            ActionCard(icon: "trash", title: "Isprazni Trash", subtitle: trashSubtitle) {
+            ActionCard(icon: "clock.arrow.circlepath", title: "Time Machine snapshots", subtitle: snapshotSubtitle) {
+                showSnapshots = true
+            }
+            ActionCard(icon: "trash", title: "Empty Trash", subtitle: trashSubtitle) {
                 confirmEmptyTrash = true
             }
-            ActionCard(icon: "internaldrive", title: "macOS Storage", subtitle: "Sistemska podesavanja skladista") {
+            ActionCard(icon: "internaldrive", title: "macOS Storage", subtitle: Text("System storage settings")) {
                 model.openStorageSettings()
             }
-            ActionCard(icon: "lock.open", title: "Full Disk Access", subtitle: "Dozvola za potpun pregled") {
+            ActionCard(icon: "lock.open", title: "Full Disk Access", subtitle: Text("Permission to see the whole disk")) {
                 model.openFullDiskAccessSettings()
             }
         }
-        ActionCard(icon: "folder", title: "Prikazi u Finder-u", subtitle: place.url.path) {
+        ActionCard(icon: "folder", title: "Show in Finder", subtitle: Text(verbatim: place.url.path)) {
             model.revealInFinder(url: place.url)
         }
         if capacity?.ejectable == true {
-            ActionCard(icon: "eject", title: "Izbaci disk", subtitle: "Bezbedno ukloni volumen") {
+            ActionCard(icon: "eject", title: "Eject disk", subtitle: Text("Safely remove this volume")) {
                 model.eject(place)
             }
         }
     }
 
-    private var trashSubtitle: String {
-        if !trashLoaded { return "Racunam velicinu…" }
-        if let s = trashSize { return s == 0 ? "Trash je prazan" : "Oslobodi \(Fmt.bytes(s))" }
-        return "Velicina nepoznata (treba Full Disk Access)"
+    private var trashSubtitle: Text {
+        if !trashLoaded { return Text("Calculating size…") }
+        if let s = trashSize { return s == 0 ? Text("Trash is empty") : Text("Free \(Fmt.bytes(s))") }
+        return Text("Size unknown (needs Full Disk Access)")
+    }
+
+    private var snapshotSubtitle: Text {
+        guard let n = snapshotCount else { return Text("Checking…") }
+        return n == 0 ? Text("No local snapshots") : Text("\(Fmt.count(UInt64(n))) local snapshots")
     }
 }
 
 /// Kartica akcije u mrezi.
 struct ActionCard: View {
     let icon: String
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: Text
     var prominent = false
     let action: () -> Void
     @State private var hover = false
@@ -175,7 +191,7 @@ struct ActionCard: View {
                                 in: RoundedRectangle(cornerRadius: 9))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.headline)
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    subtitle.font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                 }
                 Spacer(minLength: 0)
@@ -211,7 +227,7 @@ struct UsageRing: View {
             }
             VStack(spacing: 0) {
                 Text("\(Int((used * 100).rounded()))%").font(.title.bold().monospacedDigit())
-                Text("zauzeto").font(.caption).foregroundStyle(.secondary)
+                Text("used").font(.caption).foregroundStyle(.secondary)
             }
         }
     }

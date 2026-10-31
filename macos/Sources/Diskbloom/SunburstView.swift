@@ -86,7 +86,10 @@ struct SunburstView: View {
                 switch phase {
                 case .active(let loc):
                     if case .segment(let s) = g.hit(loc, in: model.segments) {
-                        if model.hovered != s { model.hovered = s }
+                        if model.hovered != s {
+                            model.hovered = s
+                            if let id = s.id { model.lastHoveredID = id }
+                        }
                     } else if model.hovered != nil {
                         model.hovered = nil
                     }
@@ -103,10 +106,11 @@ struct SunburstView: View {
             }
             .contextMenu {
                 if let s = model.hovered, let id = s.id {
-                    Button(model.collectedIDs.contains(id) ? "Izbaci iz korpe" : "Dodaj u korpu") {
+                    Button(model.collectedIDs.contains(id) ? LocalizedStringKey("Remove from Trash list") : "Add to Trash list") {
                         model.toggleCollect(id)
                     }
-                    Button("Prikazi u Finder-u") { model.revealInFinder(id) }
+                    Button("Quick Look") { model.quickLook(id) }
+                    Button("Show in Finder") { model.revealInFinder(id) }
                 }
             }
         }
@@ -124,16 +128,16 @@ struct SunburstView: View {
             Text(Fmt.bytes(size)).font(.title3.monospacedDigit()).foregroundStyle(.secondary)
                 .lineLimit(1).minimumScaleFactor(0.6)
             if let s, let f = model.focusInfo {
-                Text("\(AppModel.percent(s.size, of: f.size)) od \(model.title(f))")
+                Text("\(AppModel.percent(s.size, of: f.size)) of \(model.title(f))")
                     .font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.crumbs.count > 1 {
-                Text("\(AppModel.percent(size, of: model.rootSize)) od \(model.crumbs.first.map { model.title($0) } ?? "")")
+                Text("\(AppModel.percent(size, of: model.rootSize)) of \(model.crumbs.first.map { model.title($0) } ?? "")")
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .font(.caption).foregroundStyle(.secondary)
             }
             if s == nil, model.crumbs.count > 1 {
-                Text("klik za nazad").font(.caption2).foregroundStyle(.tertiary)
+                Text("click to go back").font(.caption2).foregroundStyle(.tertiary)
             }
         }
     }

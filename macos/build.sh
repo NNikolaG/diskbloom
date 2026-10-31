@@ -81,6 +81,12 @@ APP="$BUILD/Diskbloom.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Diskbloom"
 cp Info.plist "$APP/Contents/Info.plist"
+# Prevodi (engleski je osnovni jezik, srpski u sr.lproj)
+cp -R Resources/*.lproj "$APP/Contents/Resources/"
+# Verzija iz git taga (v0.2.0 -> 0.2.0) ako postoji
+if VERSION="$(git -C "$ROOT" describe --tags --exact-match 2>/dev/null)"; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION#v}" "$APP/Contents/Info.plist"
+fi
 
 # Ikonica: AppIcon.png (1024) -> .icns
 ICONSET="$BUILD/AppIcon.iconset"; mkdir -p "$ICONSET"

@@ -1,5 +1,6 @@
 import AppKit
 import DiskbloomFFI
+import QuickLook
 import SwiftUI
 
 struct ContentView: View {
@@ -17,7 +18,7 @@ struct ContentView: View {
                 case .scanning(let path, let scanned):
                     ScanningView(path: path, scanned: scanned)
                 case .failed(let msg):
-                    ContentUnavailable(title: "Greska", message: msg, symbol: "exclamationmark.triangle")
+                    ContentUnavailable(title: "Something went wrong", verbatim: msg, symbol: "exclamationmark.triangle")
                 case .ready:
                     ResultView()
                 }
@@ -26,6 +27,7 @@ struct ContentView: View {
             .toolbar { toolbar }
         }
         .sheet(isPresented: $model.showCleaner) { CleanerView().environmentObject(model) }
+        .quickLookPreview($model.previewURL)
         .alert("Diskbloom", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
             Button("OK") { model.alert = nil }
         } message: {
@@ -36,13 +38,23 @@ struct ContentView: View {
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup {
             if case .ready = model.phase {
-                Button { model.showOverview() } label: { Label("Pregled diska", systemImage: "square.grid.2x2") }
-                    .help("Nazad na pregled i akcije za ovaj disk")
-                Button { model.zoomOut() } label: { Label("Nazad", systemImage: "chevron.left") }
-                    .disabled(model.crumbs.count < 2)
+                Picker("View", selection: $model.resultMode) {
+                    Label("Map", systemImage: "chart.pie").tag(AppModel.ResultMode.map)
+                    Label("Largest files", systemImage: "list.number").tag(AppModel.ResultMode.largest)
+                    Label("Duplicates", systemImage: "doc.on.doc").tag(AppModel.ResultMode.duplicates)
+                }
+                .pickerStyle(.segmented)
+                .help("Map, largest files or duplicates")
+                Button { model.showOverview() } label: { Label("Disk overview", systemImage: "square.grid.2x2") }
+                    .help("Back to the overview and actions for this disk")
+                Button { model.zoomOut() } label: { Label("Back", systemImage: "chevron.left") }
+                    .disabled(model.crumbs.count < 2 || model.resultMode != .map)
+                Button { model.refresh() } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                    .help("Rescan only this folder")
+                    .disabled(model.refreshing)
                 Button { model.showCleaner = true } label: { Label("Smart Clean", systemImage: "sparkles") }
             }
-            Button { chooseFolder() } label: { Label("Izaberi folder", systemImage: "folder") }
+            Button { chooseFolder() } label: { Label("Choose folder", systemImage: "folder") }
         }
     }
 
@@ -50,7 +62,7 @@ struct ContentView: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Skeniraj"
+        panel.prompt = String(localized: "Scan")
         if panel.runModal() == .OK, let url = panel.url { model.scan(url) }
     }
 }
@@ -98,14 +110,14 @@ struct VolumesSidebar: View {
     var body: some View {
         // Izvorna selekcija liste: klik oznaci red i otvori pregled sa akcijama.
         List(selection: Binding(get: { model.selected }, set: { if let p = $0 { model.select(p) } })) {
-            Section("Diskovi") {
+            Section("Disks") {
                 ForEach(volumes) { v in
                     VolumeRow(volume: v)
                         .tag(v.place)
                         .contextMenu { PlaceMenu(place: v.place, ejectable: v.ejectable) }
                 }
             }
-            Section("Folderi") {
+            Section("Folders") {
                 ForEach(Self.folders) { f in
                     Label(f.name, systemImage: f.icon)
                         .tag(f)
@@ -130,12 +142,12 @@ struct PlaceMenu: View {
     let ejectable: Bool
 
     var body: some View {
-        Button("Skeniraj") { model.scan(place) }
+        Button("Scan") { model.scan(place) }
         Button("Smart Clean") { model.scan(place, clean: true) }
         Divider()
-        Button("Prikazi u Finder-u") { model.revealInFinder(url: place.url) }
+        Button("Show in Finder") { model.revealInFinder(url: place.url) }
         if ejectable {
-            Button("Izbaci") { model.eject(place) }
+            Button("Eject") { model.eject(place) }
         }
     }
 }
@@ -149,7 +161,7 @@ struct VolumeRow: View {
             Label(volume.name, systemImage: volume.url.path == "/" ? "internaldrive" : "externaldrive")
                 .lineLimit(1)
             ProgressView(value: used).tint(used > 0.9 ? .red : .accentColor)
-            Text("\(Fmt.bytes(UInt64(volume.free))) slobodno od \(Fmt.bytes(UInt64(volume.total)))")
+            Text("\(Fmt.bytes(UInt64(volume.free))) free of \(Fmt.bytes(UInt64(volume.total)))")
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1)
         }
@@ -161,15 +173,28 @@ struct VolumeRow: View {
 // MARK: - Stanja
 
 struct ContentUnavailable: View {
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: Text
     let symbol: String
+
+    init(title: LocalizedStringKey, message: LocalizedStringKey, symbol: String) {
+        self.title = title
+        self.message = Text(message)
+        self.symbol = symbol
+    }
+
+    /// Poruka koja se ne prevodi (npr. tekst greske iz sistema).
+    init(title: LocalizedStringKey, verbatim message: String, symbol: String) {
+        self.title = title
+        self.message = Text(verbatim: message)
+        self.symbol = symbol
+    }
 
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: symbol).font(.system(size: 44)).foregroundStyle(.secondary)
             Text(title).font(.title2.bold())
-            Text(message).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            message.foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -179,7 +204,7 @@ struct ContentUnavailable: View {
 struct EmptyState: View {
     var body: some View {
         ContentUnavailable(title: "Diskbloom",
-                           message: "Izaberi disk ili folder levo.",
+                           message: "Choose a disk or folder on the left.",
                            symbol: "circle.hexagongrid")
     }
 }
@@ -192,9 +217,9 @@ struct ScanningView: View {
     var body: some View {
         VStack(spacing: 16) {
             ProgressView().controlSize(.large)
-            Text("Skeniram \(path)").font(.headline)
-            Text("\(Fmt.count(scanned)) objekata").font(.title3.monospacedDigit()).foregroundStyle(.secondary)
-            Button("Otkazi") { model.cancel() }
+            Text("Scanning \(path)").font(.headline)
+            Text("\(Fmt.count(scanned)) items").font(.title3.monospacedDigit()).foregroundStyle(.secondary)
+            Button("Cancel") { model.cancel() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -210,11 +235,18 @@ struct ResultView: View {
             if model.inaccessible > 0 { AccessBanner() }
             // Obican HStack umesto HSplitView: HSplitView je sabirao idealne sirine
             // i gurao sadrzaj van prozora (sidebar odsecen levo, lista desno).
-            HStack(spacing: 0) {
-                SunburstView()
-                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
-                Divider()
-                ChildrenList().frame(width: 340)
+            switch model.resultMode {
+            case .map:
+                HStack(spacing: 0) {
+                    SunburstView()
+                        .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+                    Divider()
+                    ChildrenList().frame(width: 340)
+                }
+            case .largest:
+                LargestFilesView()
+            case .duplicates:
+                DuplicatesView()
             }
         }
     }
@@ -226,10 +258,10 @@ struct AccessBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "lock.fill").foregroundStyle(.orange)
-            Text("\(Fmt.count(model.inaccessible)) foldera nije dostupno. Daj Diskbloom-u Full Disk Access za potpun pregled.")
+            Text("\(Fmt.count(model.inaccessible)) folders could not be read. Give Diskbloom Full Disk Access to see everything.")
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Otvori podesavanja") { model.openFullDiskAccessSettings() }
+            Button("Open Settings") { model.openFullDiskAccessSettings() }
                 .fixedSize()
         }
         .font(.callout)
@@ -249,17 +281,17 @@ struct ChildrenList: View {
                 Breadcrumbs()
                 if let f = model.focusInfo {
                     HStack(spacing: 4) {
-                        Text("\(Fmt.bytes(f.size)) · \(Fmt.count(f.files)) fajlova")
+                        Text("\(Fmt.bytes(f.size)) · \(Fmt.count(f.files)) files")
                         if model.crumbs.count > 1 {
-                            Text("· \(AppModel.percent(f.size, of: model.rootSize)) od \(model.crumbs.first.map { model.title($0) } ?? "")")
+                            Text("· \(AppModel.percent(f.size, of: model.rootSize)) of \(model.crumbs.first.map { model.title($0) } ?? "")")
                         }
                     }
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if model.hiddenSpace > 0, model.crumbs.count == 1 {
-                    Text("Skriveni prostor: \(Fmt.bytes(model.hiddenSpace))")
+                    Text("Hidden space: \(Fmt.bytes(model.hiddenSpace))")
                         .font(.caption).foregroundStyle(.secondary)
-                        .help("Zauzeto na volumenu, a nije vidljivo skeneru: sistemski volumen, snapshot-i, folderi bez dozvole.")
+                        .help("Used on the volume but not visible to the scan: system volume, snapshots, folders without permission.")
                 }
             }
             .padding(12)
@@ -361,7 +393,7 @@ struct ChildRow: View {
             }
             .buttonStyle(.plain)
             .opacity(hover || collected ? 1 : 0)
-            .help(collected ? "Izbaci iz korpe" : "Dodaj u korpu za brisanje")
+            .help(collected ? LocalizedStringKey("Remove from Trash list") : "Add to Trash list")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
@@ -370,12 +402,17 @@ struct ChildRow: View {
                 .fill(highlighted ? Color.primary.opacity(0.07) : .clear)
                 .padding(.horizontal, 4)
         )
-        .onHover { hover = $0 }
+        .onHover { h in
+            hover = h
+            if h { model.lastHoveredID = node.id }
+        }
         .help("\(node.displayName) — \(Fmt.bytes(node.size)) (\(AppModel.percent(node.size, of: total)))")
         .contextMenu {
-            if node.hasChildren { Button("Otvori") { open() } }
-            Button(collected ? "Izbaci iz korpe" : "Dodaj u korpu") { model.toggleCollect(node.id) }
-            Button("Prikazi u Finder-u") { model.revealInFinder(node.id) }
+            if node.hasChildren { Button("Open") { open() } }
+            Button("Quick Look") { model.quickLook(node.id) }
+            Button(collected ? LocalizedStringKey("Remove from Trash list") : "Add to Trash list") { model.toggleCollect(node.id) }
+            Button("Show in Finder") { model.revealInFinder(node.id) }
+            if node.isDir { Button("Refresh this folder") { model.refresh(node.id) } }
         }
     }
 
