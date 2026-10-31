@@ -68,6 +68,9 @@ enum Cmd {
         /// Minimalna velicina kandidata u MB
         #[arg(long, default_value_t = 0.0)]
         min_mb: f64,
+        /// Ukljuci i kategorije koje treba pregledati (emulatori, VM-ovi, backup-i, instaleri)
+        #[arg(long)]
+        include_review: bool,
     },
 }
 
@@ -139,6 +142,7 @@ fn real_main() -> std::io::Result<()> {
             yes,
             category,
             min_mb,
+            include_review,
         } => {
             let tree = run_scan(&scan)?;
             let root = tree.root_path();
@@ -148,6 +152,8 @@ fn real_main() -> std::io::Result<()> {
                 .filter(|c| {
                     c.size >= min
                         && (category.is_empty() || category.iter().any(|k| k == c.category))
+                        // eksplicitno trazena kategorija se uvek prikazuje
+                        && (c.safe || include_review || !category.is_empty())
                 })
                 .collect();
             if cands.is_empty() {
@@ -200,9 +206,10 @@ fn report(cands: &[clean::Candidate], root: &Path) {
     for c in cands.iter().take(25) {
         let rel = c.path.strip_prefix(root).unwrap_or(&c.path);
         println!(
-            "  {:>10}  [{}]  {}{}",
+            "  {:>10}  [{}{}]  {}{}",
             human(c.size),
             c.category,
+            if c.safe { "" } else { ", proveri" },
             rel.display(),
             if c.is_dir { "/" } else { "" }
         );

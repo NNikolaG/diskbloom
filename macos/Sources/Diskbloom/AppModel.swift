@@ -196,6 +196,7 @@ final class AppModel: ObservableObject {
         let env = ProcessInfo.processInfo.environment
         if let p = env["DISKBLOOM_SCAN"], !p.isEmpty {
             scan(URL(fileURLWithPath: p))
+            if env["DISKBLOOM_CLEAN"] != nil { cleanAfterScan = true }
         } else if env["DISKBLOOM_OVERVIEW"] != nil {
             let root = URL(fileURLWithPath: "/")
             let name = (try? root.resourceValues(forKeys: [.volumeNameKey]))?.volumeName ?? "Macintosh HD"
@@ -242,21 +243,42 @@ final class AppModel: ObservableObject {
         return String(format: p >= 10 ? "%.0f%%" : "%.1f%%", p)
     }
 
-    /// Salje u Trash (moze da se vrati), pa azurira stablo bez ponovnog skeniranja.
+    /// Napredak slanja u Trash (nil = nista se ne brise).
+    @Published private(set) var trashProgress: (done: Int, total: Int)?
+
+    /// Salje u Trash (moze da se vrati) i azurira stablo bez ponovnog skeniranja.
+    /// Radi u grupama preko NSWorkspace.recycle, pa UI ostaje odziv i sa hiljadama stavki.
     @discardableResult
-    func trash(_ items: [(id: UInt32, path: String)]) -> UInt64 {
-        guard let tree else { return 0 }
+    func trash(_ items: [(id: UInt32, path: String)]) async -> UInt64 {
+        guard let tree, !items.isEmpty, trashProgress == nil else { return 0 }
+        trashProgress = (0, items.count)
+        defer { trashProgress = nil }
+
         var freed: UInt64 = 0
         var failed: [String] = []
-        for item in items {
-            do {
-                try FileManager.default.trashItem(at: URL(fileURLWithPath: item.path), resultingItemURL: nil)
-                freed += tree.remove(id: item.id)
-            } catch {
-                failed.append("\(item.path): \(error.localizedDescription)")
+        var firstError: String?
+        var done = 0
+        let chunkSize = 200
+        for start in stride(from: 0, to: items.count, by: chunkSize) {
+            let chunk = items[start..<min(start + chunkSize, items.count)]
+            let (moved, error) = await recycle(chunk.map { URL(fileURLWithPath: $0.path) })
+            let movedPaths = Set(moved.keys.map { $0.standardizedFileURL.path })
+            for item in chunk {
+                if movedPaths.contains(URL(fileURLWithPath: item.path).standardizedFileURL.path) {
+                    freed += tree.remove(id: item.id)
+                } else {
+                    failed.append(item.path)
+                }
             }
+            if let error, firstError == nil { firstError = error.localizedDescription }
+            done += chunk.count
+            trashProgress = (done, items.count)
         }
-        if !failed.isEmpty { alert = "Nije moguce obrisati:\n" + failed.joined(separator: "\n") }
+        if !failed.isEmpty {
+            let shown = failed.prefix(8).joined(separator: "\n")
+            alert = "Nije moguce premestiti u Trash (\(failed.count)):\n" + shown + (failed.count > 8 ? "\n…" : "")
+                + (firstError.map { "\n\n" + $0 } ?? "")
+        }
         let removed = Set(items.map(\.id))
         collector.removeAll { removed.contains($0.id) }
         // ako je fokus obrisan, vrati se na prvog postojeceg pretka
@@ -265,8 +287,23 @@ final class AppModel: ObservableObject {
         return freed
     }
 
+    private func recycle(_ urls: [URL]) async -> ([URL: URL], Error?) {
+        await withCheckedContinuation { cont in
+            NSWorkspace.shared.recycle(urls) { moved, error in
+                cont.resume(returning: (moved, error))
+            }
+        }
+    }
+
     func trashCollector() {
-        trash(collector.map { (id: $0.id, path: $0.path) })
+        let items = collector.map { (id: $0.id, path: $0.path) }
+        Task { await trash(items) }
+    }
+
+    /// Kandidati za ciscenje, racunaju se van glavne niti (veliko stablo).
+    func loadCleanCandidates() async -> [CleanCandidate] {
+        guard let tree else { return [] }
+        return await Task.detached(priority: .userInitiated) { tree.cleanCandidates() }.value
     }
 
     // MARK: Akcije nad diskom

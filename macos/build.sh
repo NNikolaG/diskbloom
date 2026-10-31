@@ -3,13 +3,23 @@
 # Treba: Rust (rustup ili brew) i Xcode Command Line Tools. Pun Xcode nije potreban.
 #   ./build.sh              arhitektura ovog Mac-a, release
 #   ./build.sh --universal  arm64 + x86_64
+#   ./build.sh --install    + zameni /Applications/Diskbloom.app (stara verzija se ne brise rucno)
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
 BUILD="$PWD/build"
 LIB=libdiskbloom_ffi
 
-if [[ "${1:-}" == "--universal" ]]; then
+UNIVERSAL=0; INSTALL=0
+for arg in "$@"; do
+  case "$arg" in
+    --universal) UNIVERSAL=1 ;;
+    --install)   INSTALL=1 ;;
+    *) echo "nepoznata opcija: $arg" >&2; exit 1 ;;
+  esac
+done
+
+if [[ $UNIVERSAL == 1 ]]; then
   TARGETS=(aarch64-apple-darwin x86_64-apple-darwin)
 else
   case "$(uname -m)" in
@@ -79,6 +89,26 @@ for s in 16 32 128 256 512; do
   sips -z $((s*2)) $((s*2)) Resources/AppIcon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
-codesign --force --sign - "$APP" >/dev/null  # ad-hoc potpis; za distribuciju treba Developer ID
-echo "==> gotovo: $APP"
-echo "    open \"$APP\""
+# Potpis. Sa stalnim identitetom (besplatan "Apple Development" sertifikat iz Xcode-a
+# ili Developer ID) macOS pamti Full Disk Access izmedju build-ova. Ad-hoc potpis se
+# menja svakim build-om, pa macOS novu verziju vidi kao drugu aplikaciju.
+IDENTITY="${DISKBLOOM_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep -Eo '"(Developer ID Application|Apple Development)[^"]*"' | head -1 | tr -d '"')}"
+if [[ -n "$IDENTITY" ]]; then
+  codesign --force --sign "$IDENTITY" "$APP" >/dev/null
+  echo "==> potpisano: $IDENTITY"
+else
+  codesign --force --sign - "$APP" >/dev/null
+  echo "==> ad-hoc potpis (Full Disk Access ce trebati ponovo dati posle svakog build-a)"
+fi
+
+if [[ $INSTALL == 1 ]]; then
+  pkill -x Diskbloom 2>/dev/null && sleep 1 || true
+  rm -rf /Applications/Diskbloom.app
+  cp -R "$APP" /Applications/
+  echo "==> instalirano: /Applications/Diskbloom.app"
+  echo "    open -a Diskbloom"
+else
+  echo "==> gotovo: $APP"
+  echo "    open \"$APP\""
+fi

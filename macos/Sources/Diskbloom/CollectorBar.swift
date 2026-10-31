@@ -28,7 +28,11 @@ struct CollectorBar: View {
                 Spacer()
                 if !model.collector.isEmpty {
                     Button("Isprazni") { model.collector = [] }
+                    if let p = model.trashProgress {
+                        ProgressView(value: Double(p.done), total: Double(max(p.total, 1))).frame(width: 120)
+                    }
                     Button("Premesti u Trash…") { confirm = true }
+                        .disabled(model.trashProgress != nil)
                         .keyboardShortcut(.delete, modifiers: .command)
                         .buttonStyle(.borderedProminent)
                         .tint(.red)

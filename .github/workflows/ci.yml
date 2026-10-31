@@ -57,6 +57,24 @@ jobs:
           swift macos/ci/click.swift 800 202 || true
           sleep 3
           screencapture -x $OUT/3-after-click.png
+          pkill -x Diskbloom || true; sleep 2
+          # 4) Smart Clean pod opterecenjem: 6000 __pycache__ + simulator + emulator
+          python3 - <<'PY'
+          import os, plistlib
+          h = os.path.expanduser("~")
+          for i in range(6000):
+              d = f"{h}/stress/p{i}/__pycache__"; os.makedirs(d, exist_ok=True)
+              open(f"{d}/m.pyc", "wb").write(b"x" * 5000)
+          sim = f"{h}/Library/Developer/CoreSimulator/Devices/0A1B2C3D-TEST"; os.makedirs(f"{sim}/data", exist_ok=True)
+          plistlib.dump({"name": "iPhone 15 Pro", "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-17-2"}, open(f"{sim}/device.plist", "wb"))
+          open(f"{sim}/data/disk.img", "wb").write(b"x" * 3_000_000)
+          avd = f"{h}/.android/avd/Pixel_8_API_34.avd"; os.makedirs(avd, exist_ok=True)
+          open(f"{avd}/userdata.img", "wb").write(b"x" * 2_000_000)
+          PY
+          open --env DISKBLOOM_SCAN="$HOME" --env DISKBLOOM_CLEAN=1 "$APP"
+          sleep 60
+          pgrep -x Diskbloom
+          screencapture -x $OUT/4-smart-clean.png
           pkill -x Diskbloom || true
       - uses: actions/upload-artifact@v4
         if: always()

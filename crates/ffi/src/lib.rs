@@ -56,6 +56,8 @@ pub struct CleanCandidate {
     pub path: String,
     pub size: u64,
     pub category: String,
+    /// Regenerise se samo (build, kes); inace korisnik treba da pogleda.
+    pub safe: bool,
     pub is_dir: bool,
 }
 
@@ -201,6 +203,7 @@ impl DiskTree {
                 path: c.path.to_string_lossy().into_owned(),
                 size: c.size,
                 category: c.category.to_string(),
+                safe: c.safe,
                 is_dir: c.is_dir,
             })
             .collect()

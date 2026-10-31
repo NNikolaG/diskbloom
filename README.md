@@ -58,18 +58,33 @@ bloom clean ~/code --delete -c rust-build,node-deps --min-mb 50
 
 ## Clean categories
 
-| Category | Matches |
-|---|---|
-| `rust-build` | `target/` next to `Cargo.toml` |
-| `node-deps` | `node_modules/` next to `package.json` |
-| `js-build` | `.next/`, `.nuxt/` next to `package.json` |
-| `python-cache` | `__pycache__/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/` |
-| `gradle` | `.gradle/`, and `build/` next to `build.gradle(.kts)` |
-| `user-cache` | `~/.cache`, `~/Library/Caches` |
-| `pkg-cache` | `~/.npm/_cacache`, `~/.cargo/registry/cache`, `~/.gradle/caches` |
-| `xcode` | `~/Library/Developer/Xcode/DerivedData` |
-| `trash` | `~/.Trash`, `~/.local/share/Trash` |
-| `macos-junk` | `.DS_Store` |
+**Safe** categories regenerate on their own and are preselected. **Review** categories
+(emulators, VMs, backups, installers) are listed but never preselected. The CLI only
+includes them with `--include-review`.
+
+| Category | Matches | |
+|---|---|---|
+| `rust-build` | `target/` next to `Cargo.toml` | safe |
+| `node-deps` | `node_modules/` next to `package.json` | safe |
+| `js-build` | `.next/`, `.nuxt/`, `.turbo/` next to `package.json` | safe |
+| `python-cache` | `__pycache__/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/` | safe |
+| `python-venv` | any folder containing `pyvenv.cfg` | review |
+| `gradle` | `.gradle/`, and `build/` next to `build.gradle(.kts)` | safe |
+| `cocoapods` / `swift-build` | `Pods/` next to `Podfile`, `.build/` next to `Package.swift` | safe |
+| `xcode-derived` | Xcode DerivedData, `~/Library/Caches/com.apple.dt.Xcode` | safe |
+| `xcode-device-support` | each iOS / watchOS / tvOS / visionOS DeviceSupport version | safe |
+| `xcode-archives` | each folder in Xcode Archives | review |
+| `simulators` | each iOS simulator device in `CoreSimulator/Devices` | review |
+| `simulator-cache` | `CoreSimulator/Caches` | safe |
+| `android-emulators` | each `~/.android/avd/*.avd` | review |
+| `android-images` | each Android SDK system image | review |
+| `vms` | Docker Desktop disk, UTM, Parallels and VMware VMs | review |
+| `pkg-cache` | Homebrew, pip, Yarn, pnpm, CocoaPods, npm, Cargo, Gradle, Maven, Go, NuGet, Bun caches | safe |
+| `app-cache` | each folder in `~/Library/Caches`, and `~/.cache` | safe |
+| `logs` | `~/Library/Logs` | safe |
+| `ios-backups` | each iPhone/iPad backup in MobileSync | review |
+| `installers` | `.dmg`, `.pkg`, `.iso`, `.xip` in `~/Downloads` | review |
+| `trash` | `~/.Trash`, `~/.local/share/Trash` | review |
 
 ## Project layout
 
