@@ -128,7 +128,8 @@ struct SunburstView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.crumbs.count > 1 {
-                Text("\(AppModel.percent(size, of: model.rootSize)) diska")
+                Text("\(AppModel.percent(size, of: model.rootSize)) od \(model.crumbs.first.map { model.title($0) } ?? "")")
+                    .lineLimit(1).minimumScaleFactor(0.7)
                     .font(.caption).foregroundStyle(.secondary)
             }
             if s == nil, model.crumbs.count > 1 {

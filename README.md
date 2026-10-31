@@ -13,6 +13,8 @@ The scanning engine is written in Rust and the app is native SwiftUI.
 
 ## Features
 
+- **Disk overview**: click a disk to see used / purgeable / free space and pick an action:
+  scan, Smart Clean, scan only Home, empty Trash, open Storage settings, reveal, eject.
 - **Fast parallel scanner** (Rust + rayon). It measures *allocated* size (`st_blocks`)
   rather than logical length, counts hard links once, never follows symlinks and stays
   on one volume.
