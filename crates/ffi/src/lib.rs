@@ -190,8 +190,18 @@ impl DiskTree {
             .into_owned()
     }
 
+    /// Nalazi cvor po putanji. Prihvata i putanje sa symlinkovima (/var -> /private/var)
+    /// i obicne putanje kad je skeniran boot disk (/Users/x -> /System/Volumes/Data/Users/x).
     pub fn find(&self, path: String) -> Option<u32> {
-        self.inner.read().unwrap().find(std::path::Path::new(&path))
+        let t = self.inner.read().unwrap();
+        let p = std::path::Path::new(&path);
+        t.find(p)
+            .or_else(|| std::fs::canonicalize(p).ok().and_then(|c| t.find(&c)))
+            .or_else(|| {
+                let data = std::path::Path::new("/System/Volumes/Data");
+                let rel = p.strip_prefix("/").ok()?;
+                t.find(&data.join(rel))
+            })
     }
 
     pub fn layout(&self, focus: u32, rings: u32, min_fraction: f64) -> Vec<SegmentInfo> {

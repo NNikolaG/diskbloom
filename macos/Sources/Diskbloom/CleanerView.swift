@@ -134,7 +134,7 @@ struct CleanerView: View {
                         Button("Delete all unavailable simulators") {
                             Task {
                                 working = true
-                                if await model.deleteUnavailableSimulators() { groups = nil; await reload() }
+                                if await model.deleteUnavailableSimulators() { self.groups = nil; await reload() }
                                 working = false
                             }
                         }
