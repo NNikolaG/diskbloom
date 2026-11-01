@@ -328,7 +328,7 @@ pub(crate) mod tests {
         let groups = t.same_size_groups(1);
         assert_eq!(groups.len(), 1); // tiny1 + tiny2
         assert_eq!(groups[0].len(), 2);
-        assert!(t.same_size_groups(60).is_empty());
+        assert_eq!(t.same_size_groups(60), Vec::<Vec<NodeId>>::new());
     }
 
     #[test]

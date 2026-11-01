@@ -75,6 +75,6 @@ struct LargestFilesView: View {
         guard let d else { return String(localized: "never opened") }
         let rel = RelativeDateTimeFormatter()
         rel.unitsStyle = .full
-        return String(localized: "opened \(rel.localizedString(for: d, relativeTo: Date()))")
+        return String(localized: "opened \(rel.localizedString(for: d, relativeTo: .now))")
     }
 }

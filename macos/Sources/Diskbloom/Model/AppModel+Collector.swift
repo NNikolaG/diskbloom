@@ -1,4 +1,5 @@
 import DiskbloomFFI
+import DiskbloomKit
 
 /// The Trash list: items queued while browsing, moved to the Trash in one step.
 extension AppModel {

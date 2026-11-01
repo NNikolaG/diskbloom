@@ -149,10 +149,14 @@ struct CleanerView: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(info.title).font(.body.weight(.medium))
-                (Text(info.detail) + Text(verbatim: " · ") + Text("\(Format.count(group.items.count)) items"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 0) {
+                    Text(info.detail)
+                    Text(verbatim: " · ")
+                    Text("\(Format.count(group.items.count)) items")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
             Spacer()
             Text(Format.bytes(group.size)).monospacedDigit().fontWeight(.medium)

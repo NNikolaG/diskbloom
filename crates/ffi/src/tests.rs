@@ -27,7 +27,7 @@ fn scan_layout_clean_remove() {
     let freed = tree.remove(c[0].id);
     assert!(freed >= 200_000);
     assert_eq!(tree.info(root).unwrap().size, before - freed);
-    assert!(tree.clean_candidates().is_empty());
+    assert_eq!(tree.clean_candidates().len(), 0, "no candidates left");
 }
 
 #[test]

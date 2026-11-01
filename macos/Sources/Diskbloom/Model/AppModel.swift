@@ -132,7 +132,7 @@ final class AppModel: ObservableObject {
     private func finishScan(_ tree: DiskTree, of place: Place, job: ScanJob) {
         self.tree = tree
         scannedPlace = place
-        scannedAt = Date()
+        scannedAt = .now
         inaccessible = job.errors()
         hiddenSpace = BootVolume.hiddenSpace(of: place.url, seen: tree.info(id: tree.root())?.size ?? 0)
         phase = .ready

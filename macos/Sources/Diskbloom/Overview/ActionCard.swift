@@ -31,9 +31,13 @@ struct ActionCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(hover ? 0.07 : 0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(prominent ? Color.accentColor.opacity(0.6) : Color.primary.opacity(0.06)))
+            .background {
+                RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(hover ? 0.07 : 0.04))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(prominent ? Color.accentColor.opacity(0.6) : Color.primary.opacity(0.06))
+            }
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)

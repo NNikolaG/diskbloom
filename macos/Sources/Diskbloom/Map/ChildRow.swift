@@ -30,11 +30,11 @@ struct ChildRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 6)
                 .fill(hover || model.hovered?.id == node.id ? Color.primary.opacity(0.07) : .clear)
                 .padding(.horizontal, 4)
-        )
+        }
         .onHover { inside in
             hover = inside
             if inside { model.lastHoveredID = node.id }

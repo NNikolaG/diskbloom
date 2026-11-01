@@ -6,7 +6,7 @@ struct Breadcrumbs: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 3) {
                     ForEach(Array(model.crumbs.enumerated()), id: \.element.id) { index, node in
                         if index > 0 {
@@ -24,6 +24,7 @@ struct Breadcrumbs: View {
                     }
                 }
             }
+            .scrollIndicators(.hidden)
             .onChange(of: model.focus) { id in proxy.scrollTo(id, anchor: .trailing) }
         }
     }

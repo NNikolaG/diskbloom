@@ -48,7 +48,9 @@ struct FileRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 6).fill(hover ? Color.primary.opacity(0.06) : .clear))
+        .background {
+            RoundedRectangle(cornerRadius: 6).fill(hover ? Color.primary.opacity(0.06) : .clear)
+        }
         .contentShape(Rectangle())
         .onHover { inside in
             hover = inside

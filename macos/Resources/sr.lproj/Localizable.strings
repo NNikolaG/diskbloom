@@ -197,3 +197,12 @@
 "%@ wasted" = "%@ viška";
 "Keep one" = "Zadrži jednu";
 "Keep the first copy and add the others to the Trash list" = "Zadrži prvu kopiju, a ostale dodaj u listu za brisanje";
+
+/* Accessibility */
+"Select" = "Izaberi";
+"On" = "Uključeno";
+"Off" = "Isključeno";
+"Mixed" = "Delimično";
+"Expanded" = "Otvoreno";
+"Collapsed" = "Zatvoreno";
+"Disk map" = "Mapa diska";

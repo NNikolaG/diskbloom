@@ -32,8 +32,8 @@ enum SystemActions {
     /// validated values: the command goes to `/bin/sh`.
     static func runAsAdministrator(_ command: String) -> Shell.Result {
         let escaped = command
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacing("\\", with: "\\\\")
+            .replacing("\"", with: "\\\"")
         var error: NSDictionary?
         let output = NSAppleScript(source: "do shell script \"\(escaped)\" with administrator privileges")?
             .executeAndReturnError(&error)

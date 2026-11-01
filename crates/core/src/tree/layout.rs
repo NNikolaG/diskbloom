@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn layout_of_empty_focus_is_empty() {
         let t = sample();
-        assert!(t.layout(t.root(), 0, 0.0).is_empty());
-        assert!(t.layout(999, 3, 0.0).is_empty());
+        assert_eq!(t.layout(t.root(), 0, 0.0), Vec::new());
+        assert_eq!(t.layout(999, 3, 0.0), Vec::new());
     }
 }

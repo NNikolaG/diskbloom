@@ -10,7 +10,7 @@ public enum CandidateLabel {
             if let name = simulatorName(at: path) { return name }
         case "android-emulators":
             return URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-                .replacingOccurrences(of: "_", with: " ")
+                .replacing("_", with: " ")
         default:
             break
         }

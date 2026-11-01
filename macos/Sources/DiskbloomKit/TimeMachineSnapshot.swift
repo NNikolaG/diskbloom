@@ -14,7 +14,7 @@ public struct TimeMachineSnapshot: Identifiable, Hashable, Sendable {
     /// runs with administrator rights, so only this exact format is accepted.
     public var stamp: String? {
         guard isTimeMachine else { return nil }
-        let stamp = name.dropFirst(Self.prefix.count).replacingOccurrences(of: ".local", with: "")
+        let stamp = String(name.dropFirst(Self.prefix.count)).replacing(".local", with: "")
         return stamp.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$", options: .regularExpression) != nil
             ? stamp : nil
     }

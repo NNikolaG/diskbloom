@@ -139,7 +139,7 @@ struct PlaceOverview: View {
     }
 
     private func loadSnapshotCount() async {
-        snapshotCount = await AppModel.localSnapshots().filter(\.isTimeMachine).count
+        snapshotCount = await AppModel.localSnapshots().count(where: \.isTimeMachine)
     }
 
     private var trashSubtitle: Text {

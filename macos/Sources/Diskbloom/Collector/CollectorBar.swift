@@ -62,7 +62,7 @@ struct CollectorBar: View {
     }
 
     private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack {
                 ForEach(model.collector) { item in
                     HStack(spacing: 4) {
@@ -80,5 +80,6 @@ struct CollectorBar: View {
                 }
             }
         }
+        .scrollIndicators(.hidden)
     }
 }

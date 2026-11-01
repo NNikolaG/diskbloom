@@ -14,8 +14,8 @@ enum FileAge: String, CaseIterable, Identifiable {
     var cutoff: Date? {
         switch self {
         case .any: return nil
-        case .sixMonths: return Calendar.current.date(byAdding: .month, value: -6, to: Date())
-        case .year: return Calendar.current.date(byAdding: .year, value: -1, to: Date())
+        case .sixMonths: return Calendar.current.date(byAdding: .month, value: -6, to: .now)
+        case .year: return Calendar.current.date(byAdding: .year, value: -1, to: .now)
         }
     }
 }
