@@ -120,7 +120,7 @@ impl From<&fs::Metadata> for Info {
 }
 
 /// The scan mostly waits for the disk, not the CPU, so it runs on its own pool with more
-/// threads than cores: on a 3-core Mac, 8 to 16 threads scanned twice as fast as 3.
+/// threads than cores: on a 3-core Mac, 8 to 24 threads scanned up to twice as fast as 3.
 /// `DISKBLOOM_SCAN_THREADS` overrides the count (for benchmarks).
 fn scan_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
@@ -129,7 +129,7 @@ fn scan_pool() -> Option<&'static rayon::ThreadPool> {
         let threads = std::env::var("DISKBLOOM_SCAN_THREADS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or((cores * 4).clamp(8, 32));
+            .unwrap_or((cores * 4).clamp(16, 32));
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .thread_name(|i| format!("diskbloom-scan-{i}"))
