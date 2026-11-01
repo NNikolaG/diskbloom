@@ -40,8 +40,8 @@ jobs:
             echo
           } > bench.md
           CMDS=("du -sk $T" "$B top $T -d 0" "dust -d 0 $T" "gdu-go -n $T")
-          # Thread count experiment (I/O bound: more threads than cores may help)
-          for n in 8 16 32 64; do CMDS+=("env RAYON_NUM_THREADS=$n $B top $T -d 0"); done
+          # Baseline: one scan thread per core, as before the dedicated scan pool
+          CMDS+=("env DISKBLOOM_SCAN_THREADS=$(sysctl -n hw.ncpu) $B top $T -d 0")
           hyperfine -N -i --warmup 1 --runs 5 --export-markdown warm.md "${CMDS[@]}"
           hyperfine -N -i --runs 3 --prepare 'sudo purge' --export-markdown cold.md "${CMDS[@]}"
           { echo "### Warm cache"; cat warm.md; echo; echo "### Cold cache (sudo purge before each run)"; cat cold.md; } >> bench.md

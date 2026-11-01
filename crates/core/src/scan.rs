@@ -17,7 +17,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 /// A scanned file or folder, with its children sorted by size (largest first).
 #[derive(Debug, Clone)]
@@ -119,6 +119,26 @@ impl From<&fs::Metadata> for Info {
     }
 }
 
+/// The scan mostly waits for the disk, not the CPU, so it runs on its own pool with more
+/// threads than cores: on a 3-core Mac, 8 to 16 threads scanned twice as fast as 3.
+/// `DISKBLOOM_SCAN_THREADS` overrides the count (for benchmarks).
+fn scan_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        let cores = std::thread::available_parallelism().map_or(4, usize::from);
+        let threads = std::env::var("DISKBLOOM_SCAN_THREADS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or((cores * 4).clamp(8, 32));
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .thread_name(|i| format!("diskbloom-scan-{i}"))
+            .build()
+            .ok()
+    })
+    .as_ref()
+}
+
 /// Entries below this count are stat-ed on one thread; splitting them costs more than it saves.
 const PARALLEL_STAT_MIN: usize = 64;
 
@@ -177,7 +197,11 @@ impl Scanner {
         let name = self.root.to_string_lossy().into_owned();
         self.scanned.fetch_add(1, Ordering::Relaxed);
         if info.kind == FileType::Directory {
-            Ok(self.visit_dir(&self.root, name, info))
+            let visit = || self.visit_dir(&self.root, name, info);
+            Ok(match scan_pool() {
+                Some(pool) => pool.install(visit),
+                None => visit(),
+            })
         } else {
             Ok(Node::file(name, self.counted_size(&info)))
         }
