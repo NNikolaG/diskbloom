@@ -237,6 +237,73 @@ const HOME_RULES: &[HomeRule] = &[
     home(".local/share/Trash", Kind::Exact, "trash", false),
 ];
 
+/// Ovde pravila po imenu (`node_modules`, `target`, `build`…) ne vaze: to nisu projekti,
+/// nego instalirani alati (globalni npm paketi, ekstenzije editora, toolchain-i…).
+/// Pravila po putanji (kesevi u ~/Library/Caches i sl.) i dalje vaze.
+const PROTECTED_ABS: &[&str] = &[
+    "/Applications",
+    "/Library",
+    "/System",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/opt/homebrew",
+    "/opt/local",
+    "/nix",
+];
+
+/// Isto, relativno na $HOME.
+const PROTECTED_HOME: &[&str] = &[
+    "Library",
+    "Applications",
+    // Node: menadzeri verzija i globalne instalacije
+    ".nvm",
+    ".fnm",
+    ".local/share/fnm",
+    ".volta",
+    ".asdf",
+    ".npm",
+    ".npm-global",
+    ".pnpm-store",
+    ".local/share/pnpm",
+    ".bun",
+    ".yarn",
+    ".config/yarn",
+    ".deno",
+    ".node-gyp",
+    // editori i njihove ekstenzije
+    ".vscode",
+    ".vscode-insiders",
+    ".vscode-server",
+    ".cursor",
+    ".windsurf",
+    ".zed",
+    // ostali toolchain-i
+    ".cargo",
+    ".rustup",
+    ".gradle",
+    ".m2",
+    ".nuget",
+    "go/pkg",
+    ".sdkman",
+    ".pyenv",
+    ".rbenv",
+    ".gem",
+    ".conda",
+    "miniconda3",
+    "anaconda3",
+    ".docker",
+];
+
+/// Boot disk se skenira kroz Data volumen; ista putanja tamo ima ovaj prefiks.
+const DATA_VOLUME: &str = "/System/Volumes/Data";
+
+/// Obe varijante putanje: `/Users/x` i `/System/Volumes/Data/Users/x`.
+fn both_forms(p: PathBuf) -> [PathBuf; 2] {
+    let data = Path::new(DATA_VOLUME).join(p.strip_prefix("/").unwrap_or(&p));
+    [p, data]
+}
+
 /// Sve kategorije, sa oznakom da li su bezbedne.
 pub fn categories() -> Vec<(&'static str, bool)> {
     let mut v: Vec<_> = NAME_RULES
@@ -252,22 +319,36 @@ pub fn categories() -> Vec<(&'static str, bool)> {
 struct Rules<'a> {
     exact: HashMap<PathBuf, &'a HomeRule>,
     children: HashMap<PathBuf, &'a HomeRule>,
+    /// Koreni u kojima pravila po imenu ne vaze (vidi PROTECTED_*).
+    protected: std::collections::HashSet<PathBuf>,
 }
 
 impl<'a> Rules<'a> {
     fn new(home: Option<&Path>) -> Self {
         let mut exact = HashMap::new();
         let mut children = HashMap::new();
+        let mut protected = std::collections::HashSet::new();
+        for p in PROTECTED_ABS {
+            protected.extend(both_forms(PathBuf::from(p)));
+        }
         if let Some(h) = home {
             for r in HOME_RULES {
-                let p = h.join(r.path);
-                match r.kind {
-                    Kind::Exact => exact.insert(p, r),
-                    Kind::Children | Kind::ChildrenExt(_) => children.insert(p, r),
-                };
+                for p in both_forms(h.join(r.path)) {
+                    match r.kind {
+                        Kind::Exact => exact.insert(p, r),
+                        Kind::Children | Kind::ChildrenExt(_) => children.insert(p, r),
+                    };
+                }
+            }
+            for p in PROTECTED_HOME {
+                protected.extend(both_forms(h.join(p)));
             }
         }
-        Rules { exact, children }
+        Rules {
+            exact,
+            children,
+            protected,
+        }
     }
 }
 
@@ -282,25 +363,39 @@ pub fn find_with_home(tree: &Tree, home: Option<&Path>) -> Vec<Candidate> {
     // Koren se nikad ne predlaze, samo njegovi potomci.
     let root = tree.root();
     let root_path = tree.root_path().to_path_buf();
+    // Ako je sam skenirani folder unutar zasticenog (npr. skeniran ~/.nvm), pravila po
+    // imenu ne vaze nigde. Boot disk (/System/Volumes/Data) se gleda kao "/".
+    let norm = match root_path.strip_prefix(DATA_VOLUME) {
+        Ok(rest) => Path::new("/").join(rest),
+        Err(_) => root_path.clone(),
+    };
+    let names = !rules.protected.iter().any(|p| norm.starts_with(p));
     for &c in tree.children(root) {
         let p = root_path.join(&tree.get(c).unwrap().name);
-        visit(tree, c, root, &root_path, &p, &rules, &mut out);
+        visit(tree, c, root, &root_path, &p, names, &rules, &mut out);
     }
     out.sort_by_key(|c| std::cmp::Reverse(c.size));
     out
 }
 
+/// `names`: da li pravila po imenu vaze u ovom delu stabla.
+#[allow(clippy::too_many_arguments)]
 fn visit(
     t: &Tree,
     id: NodeId,
     parent: NodeId,
     parent_path: &Path,
     path: &Path,
+    names: bool,
     rules: &Rules,
     out: &mut Vec<Candidate>,
 ) {
     let n = t.get(id).unwrap();
-    if let Some((category, safe)) = classify(t, id, parent, parent_path, path, rules) {
+    let names = names
+        && !rules.protected.contains(path)
+        // unutar .app paketa (Electron aplikacije imaju package.json + node_modules)
+        && !(n.is_dir && n.name.ends_with(".app"));
+    if let Some((category, safe)) = classify(t, id, parent, parent_path, path, names, rules) {
         if n.size > 0 {
             out.push(Candidate {
                 id,
@@ -313,9 +408,14 @@ fn visit(
         }
         return; // ne silazimo u ono sto je vec kandidat
     }
+    // Sadrzaj node_modules pripada instaliranim paketima (svaki ima svoj package.json
+    // i node_modules), nikad projektu. Bez ovoga bi se brisali delovi globalnih paketa.
+    if n.is_dir && n.name == "node_modules" {
+        return;
+    }
     for &c in t.children(id) {
         let cp = path.join(&t.get(c).unwrap().name);
-        visit(t, c, id, path, &cp, rules, out);
+        visit(t, c, id, path, &cp, names, rules, out);
     }
 }
 
@@ -325,6 +425,7 @@ fn classify(
     parent: NodeId,
     parent_path: &Path,
     path: &Path,
+    names: bool,
     rules: &Rules,
 ) -> Option<(&'static str, bool)> {
     let n = t.get(id).unwrap();
@@ -343,7 +444,7 @@ fn classify(
             return Some((r.category, r.safe));
         }
     }
-    if !n.is_dir {
+    if !n.is_dir || !names {
         return None;
     }
     let has_file = |dir: NodeId, names: &[&str]| {
@@ -460,6 +561,86 @@ mod tests {
         for c in &c {
             assert_eq!(tree.find(&c.path), Some(c.id));
         }
+    }
+
+    #[test]
+    fn global_and_tool_node_modules_are_never_flagged() {
+        let d = tempfile::tempdir().unwrap();
+        let r = fs::canonicalize(d.path()).unwrap();
+        let w = |p: &str| {
+            let p = r.join(p);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, vec![7u8; 9000]).unwrap();
+        };
+        // pravi projekat: njegov node_modules jeste kandidat (i samo on, ne ugnjezdeni)
+        w("h/code/app/package.json");
+        w("h/code/app/node_modules/dep/package.json");
+        w("h/code/app/node_modules/dep/node_modules/sub/i.js");
+        // globalni npm preko nvm-a: lib/node_modules/<paket>/{package.json,node_modules}
+        w("h/.nvm/versions/node/v20/lib/node_modules/npm/package.json");
+        w("h/.nvm/versions/node/v20/lib/node_modules/npm/node_modules/x/i.js");
+        // npm global prefix van menadzera verzija: i dalje unutar node_modules
+        w("h/npm-prefix/lib/node_modules/@angular/cli/package.json");
+        w("h/npm-prefix/lib/node_modules/@angular/cli/node_modules/y/i.js");
+        // pnpm / bun / yarn global: package.json + node_modules, ali zasticeno
+        w("h/Library/pnpm/global/5/package.json");
+        w("h/Library/pnpm/global/5/node_modules/z/i.js");
+        w("h/.bun/install/global/package.json");
+        w("h/.bun/install/global/node_modules/z/i.js");
+        w("h/.config/yarn/global/package.json");
+        w("h/.config/yarn/global/node_modules/z/i.js");
+        // ekstenzija editora
+        w("h/.vscode/extensions/ext.one/package.json");
+        w("h/.vscode/extensions/ext.one/node_modules/q/i.js");
+        // Electron aplikacija
+        w("apps/Some.app/Contents/Resources/app/package.json");
+        w("apps/Some.app/Contents/Resources/app/node_modules/e/i.js");
+        // Rust toolchain u ~/.cargo: target/ pored Cargo.toml u git checkout-u
+        w("h/.cargo/git/checkouts/crate/Cargo.toml");
+        w("h/.cargo/git/checkouts/crate/target/x");
+
+        let s = Scanner::new(&r, false).unwrap();
+        let tree = Tree::from_node(s.scan(&r).unwrap(), r.clone());
+        let c = find_with_home(&tree, Some(&r.join("h")));
+        let got: Vec<_> = c
+            .iter()
+            .map(|c| {
+                c.path
+                    .strip_prefix(&r)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(got, vec!["h/code/app/node_modules".to_string()]);
+    }
+
+    #[test]
+    fn home_rules_match_boot_volume_paths() {
+        // Skeniran boot disk: putanje u stablu imaju /System/Volumes/Data prefiks,
+        // a $HOME je /Users/x. Pravila po putanji moraju i dalje da vaze.
+        let rules = Rules::new(Some(Path::new("/Users/x")));
+        assert!(
+            rules
+                .exact
+                .contains_key(Path::new("/System/Volumes/Data/Users/x/Library/Logs"))
+        );
+        assert!(rules.exact.contains_key(Path::new("/Users/x/Library/Logs")));
+        assert!(
+            rules
+                .children
+                .contains_key(Path::new("/System/Volumes/Data/Users/x/Library/Caches"))
+        );
+        assert!(
+            rules
+                .protected
+                .contains(Path::new("/System/Volumes/Data/Users/x/.nvm"))
+        );
+        assert!(
+            rules
+                .protected
+                .contains(Path::new("/System/Volumes/Data/Applications"))
+        );
     }
 
     #[test]

@@ -158,6 +158,13 @@ bloom clean ~/code --delete -c rust-build,node-deps --min-mb 50
 (emulators, VMs, backups, installers) are listed but never preselected. The CLI only
 includes them with `--include-review`.
 
+Project rules (`node_modules`, `target/`, `build/`, `.venv`…) only apply to your own projects.
+They are never applied inside `node_modules` itself, inside `.app` bundles, in `~/Library`,
+in system folders (`/usr`, `/opt/homebrew`, `/Applications`, …) or in tool folders such as
+`~/.nvm`, `~/.volta`, `~/.fnm`, `~/.bun`, `~/.config/yarn`, `~/.vscode`, `~/.cursor`,
+`~/.cargo` and `~/.rustup`. Global npm/pnpm/yarn/bun packages and editor extensions are
+therefore never offered for removal.
+
 | Category | Matches | |
 |---|---|---|
 | `rust-build` | `target/` next to `Cargo.toml` | safe |
