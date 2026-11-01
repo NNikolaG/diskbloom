@@ -1,13 +1,13 @@
 name: Release
 
-# Pokrece se na tag "v*" (npr. git tag v0.2.0 && git push origin v0.2.0).
-# Pravi Diskbloom.dmg za Apple Silicon i objavljuje GitHub Release.
-# Besplatno za javne repoe; app nije notarizovan (nema Apple Developer naloga).
+# Runs on a "v*" tag (git tag v0.2.0 && git push origin v0.2.0).
+# Builds Diskbloom.dmg for Apple Silicon and publishes a GitHub Release.
+# Free for public repositories; the app is not notarized (no Apple Developer account).
 
 on:
   push:
     tags: ["v*"]
-  # i kad se Release objavi kroz GitHub (Releases -> Draft a new release)
+  # and when a release is published on GitHub (Releases -> Draft a new release)
   release:
     types: [published]
 

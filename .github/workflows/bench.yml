@@ -1,6 +1,6 @@
 name: Benchmark
 
-# Brzina skeniranja na macOS-u: bloom (Diskbloom jezgro) protiv du, dust i gdu.
+# Scan speed on macOS: bloom (the Diskbloom core) against du, dust and gdu.
 
 on:
   workflow_dispatch:

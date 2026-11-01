@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "refactor/**"]
   pull_request:
 
 permissions:
@@ -38,6 +38,8 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: ./macos/build.sh
+      - name: Swift tests
+        run: cd macos && swift test
       - name: Check hardened runtime
         run: |
           codesign -dv --verbose=2 macos/build/Diskbloom.app 2>&1 | tee /dev/stderr | grep -q "flags=.*runtime"
@@ -54,23 +56,23 @@ jobs:
         run: |
           APP=macos/build/Diskbloom.app
           OUT=macos/build/shots; mkdir -p $OUT
-          # 1) pregled diska sa akcijama
+          # 1) disk overview with actions
           open --env DISKBLOOM_OVERVIEW=1 "$APP"
           sleep 12
-          pgrep -x Diskbloom   # app se nije srusila
+          pgrep -x Diskbloom   # the app did not crash
           screencapture -x $OUT/1-overview.png
           pkill -x Diskbloom; sleep 2
-          # 2) skeniranje + korpa
+          # 2) scan + Trash list
           open --env DISKBLOOM_DEMO=1 --env DISKBLOOM_SCAN="$HOME" "$APP"
           sleep 45
           pgrep -x Diskbloom
           screencapture -x $OUT/2-map.png
-          # 3) klik na drugi folder u listi desno -> treba da udje u njega
+          # 3) click the second folder in the list -> it should open
           swift macos/ci/click.swift 800 202 || true
           sleep 3
           screencapture -x $OUT/3-after-click.png
           pkill -x Diskbloom || true; sleep 2
-          # 4) Smart Clean pod opterecenjem: 6000 __pycache__ + simulator + emulator
+          # 4) Smart Clean under load: 6000 __pycache__ + a simulator + an emulator
           python3 - <<'PY'
           import os, plistlib
           h = os.path.expanduser("~")
@@ -88,7 +90,7 @@ jobs:
           pgrep -x Diskbloom
           screencapture -x $OUT/4-smart-clean.png
           pkill -x Diskbloom || true; sleep 2
-          # 5) najveci fajlovi i duplikati (pravimo par kopija)
+          # 5) largest files and duplicates (a few copies)
           mkdir -p ~/dupes/a ~/dupes/b
           head -c 30000000 /dev/urandom > ~/dupes/a/video.mov
           cp ~/dupes/a/video.mov ~/dupes/b/video-copy.mov
@@ -103,7 +105,7 @@ jobs:
           pgrep -x Diskbloom
           screencapture -x $OUT/6-duplicates.png
           pkill -x Diskbloom || true; sleep 2
-          # 6) srpski jezik
+          # 6) Serbian
           open --env DISKBLOOM_OVERVIEW=1 "$APP" --args -AppleLanguages "(sr)"
           sleep 12
           pgrep -x Diskbloom

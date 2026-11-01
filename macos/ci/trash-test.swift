@@ -1,4 +1,4 @@
-// CI provera: da li macOS pusta u Trash putanje kroz /System/Volumes/Data i kroz /Users.
+// CI check: does macOS accept Trash moves for paths through /System/Volumes/Data and /Users?
 import AppKit
 
 func recycle(_ path: String) -> String {

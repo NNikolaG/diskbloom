@@ -1,4 +1,4 @@
-// CI pomocnik: klik misem na (x, y) u tackama ekrana.  swift click.swift 800 200
+// CI helper: mouse click at (x, y) in screen points.  swift click.swift 800 200
 import CoreGraphics
 import Foundation
 
