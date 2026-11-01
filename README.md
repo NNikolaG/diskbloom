@@ -215,9 +215,9 @@ macos/        SwiftUI app (Swift Package) + build.sh
 docs/         architecture notes
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how disk analyzers like this work
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how Diskbloom works
 and how each piece maps to the code.
 
 ## License
 
-MIT. Diskbloom is an independent project and is not affiliated with DaisyDisk.
+MIT.

@@ -1,7 +1,6 @@
 name: Benchmark
 
 # Brzina skeniranja na macOS-u: bloom (Diskbloom jezgro) protiv du, dust i gdu.
-# DaisyDisk nema komandnu liniju, pa se ne moze automatski meriti; vidi docs/BENCHMARKS.md.
 
 on:
   workflow_dispatch:

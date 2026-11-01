@@ -169,7 +169,7 @@ final class AppModel: ObservableObject {
         return url.path
     }
 
-    /// "Hidden space" kao u DaisyDisk-u: zauzeto na volumenu minus ono sto smo videli.
+    /// "Hidden space": zauzeto na volumenu minus ono sto je skener video.
     static func hiddenSpace(scanned url: URL, tree: DiskTree) -> UInt64 {
         // "ForImportantUsage" ukljucuje purgeable prostor kao slobodan, kao Finder.
         let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeURLKey]

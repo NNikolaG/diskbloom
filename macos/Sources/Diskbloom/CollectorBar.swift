@@ -2,7 +2,7 @@ import AppKit
 import DiskbloomFFI
 import SwiftUI
 
-/// Korpa za brisanje (kao Collector u DaisyDisk-u): skupljas stavke dok pregledas disk,
+/// Korpa za brisanje (Collector): skupljas stavke dok pregledas disk,
 /// vidis ukupnu velicinu, pa sve saljes u Trash odjednom. Uvek je vidljiva da bi se
 /// u nju moglo prevuci.
 struct CollectorBar: View {
