@@ -288,35 +288,73 @@ final class AppModel: ObservableObject {
 
         var freed: UInt64 = 0
         var failed: [String] = []
-        var firstError: String?
+        var firstError: String?   // greska grupe (NSWorkspace.recycle)
+        var itemError: String?    // prva greska pojedinacne stavke (FileManager.trashItem)
         var done = 0
         let chunkSize = 200
         for start in stride(from: 0, to: items.count, by: chunkSize) {
             let chunk = items[start..<min(start + chunkSize, items.count)]
             let (moved, error) = await recycle(chunk.map { URL(fileURLWithPath: $0.path) })
             let movedPaths = Set(moved.keys.map { $0.standardizedFileURL.path })
+            var retry: [(id: UInt32, path: String)] = []
             for item in chunk {
                 if movedPaths.contains(URL(fileURLWithPath: item.path).standardizedFileURL.path) {
                     freed += tree.remove(id: item.id)
                 } else {
-                    failed.append(item.path)
+                    retry.append(item)
                 }
             }
-            if let error, firstError == nil { firstError = error.localizedDescription }
+            if let error, firstError == nil { firstError = Self.describe(error) }
+            // Drugi pokusaj direktno (FileManager.trashItem), van glavne niti;
+            // daje i tacnu gresku po stavci ako ni to ne uspe.
+            if !retry.isEmpty {
+                let toRetry = retry
+                let results = await Task.detached(priority: .userInitiated) { () -> [(Int, String?)] in
+                    let fm = FileManager()
+                    return toRetry.enumerated().map { i, item in
+                        do {
+                            try fm.trashItem(at: URL(fileURLWithPath: item.path), resultingItemURL: nil)
+                            return (i, nil)
+                        } catch {
+                            return (i, AppModel.describe(error))
+                        }
+                    }
+                }.value
+                for (i, err) in results {
+                    if let err {
+                        failed.append(retry[i].path)
+                        if itemError == nil { itemError = err }
+                    } else {
+                        freed += tree.remove(id: retry[i].id)
+                    }
+                }
+            }
             done += chunk.count
             trashProgress = (done, items.count)
         }
         if !failed.isEmpty {
             let shown = failed.prefix(8).joined(separator: "\n")
             alert = String(localized: "Could not move \(Fmt.count(UInt64(failed.count))) items to the Trash:") + "\n" + shown + (failed.count > 8 ? "\n…" : "")
-                + (firstError.map { "\n\n" + $0 } ?? "")
+                + ((itemError ?? firstError).map { "\n\n" + $0 } ?? "")
         }
-        let removed = Set(items.map(\.id))
+        // iz korpe izlaze samo obrisane stavke; neuspele ostaju da mogu ponovo
+        let failedSet = Set(failed)
+        let removed = Set(items.filter { !failedSet.contains($0.path) }.map(\.id))
         collector.removeAll { removed.contains($0.id) }
         // ako je fokus obrisan, vrati se na prvog postojeceg pretka
         let alive = tree.ancestors(id: focus).first?.id == tree.root()
         zoom(to: alive ? focus : tree.root())
         return freed
+    }
+
+    /// Greska sa domenom/kodom i uzrokom, da bi se iz poruke videlo sta je macOS odbio.
+    nonisolated static func describe(_ error: Error) -> String {
+        let e = error as NSError
+        var text = "\(e.localizedDescription) [\(e.domain) \(e.code)]"
+        if let u = e.userInfo[NSUnderlyingErrorKey] as? NSError {
+            text += "\n← \(u.localizedDescription) [\(u.domain) \(u.code)]"
+        }
+        return text
     }
 
     private func recycle(_ urls: [URL]) async -> ([URL: URL], Error?) {
