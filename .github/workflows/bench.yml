@@ -40,10 +40,10 @@ jobs:
             echo
           } > bench.md
           CMDS=("du -sk $T" "$B top $T -d 0" "dust -d 0 $T" "gdu-go -n $T")
-          # Baseline: one scan thread per core, as before the dedicated scan pool
-          CMDS+=("env DISKBLOOM_SCAN_THREADS=$(sysctl -n hw.ncpu) $B top $T -d 0")
-          hyperfine -N -i --warmup 1 --runs 5 --export-markdown warm.md "${CMDS[@]}"
-          hyperfine -N -i --runs 3 --prepare 'sudo purge' --export-markdown cold.md "${CMDS[@]}"
+          # Scan thread counts: one per core (old behaviour) and a few larger pools
+          for n in $(sysctl -n hw.ncpu) 8 16 24; do CMDS+=("env DISKBLOOM_SCAN_THREADS=$n $B top $T -d 0"); done
+          hyperfine -N -i --warmup 1 --runs 8 --export-markdown warm.md "${CMDS[@]}"
+          hyperfine -N -i --runs 5 --prepare 'sudo purge' --export-markdown cold.md "${CMDS[@]}"
           { echo "### Warm cache"; cat warm.md; echo; echo "### Cold cache (sudo purge before each run)"; cat cold.md; } >> bench.md
           cat bench.md
           cat bench.md >> "$GITHUB_STEP_SUMMARY"
