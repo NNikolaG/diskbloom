@@ -1,81 +1,78 @@
-<p align="center"><img src="macos/Resources/AppIcon.png" width="160" alt="Diskbloom icon"></p>
+<p align="center"><img src="macos/Resources/AppIcon.png" width="140" alt="Diskbloom icon"></p>
 
-# Diskbloom
+<h1 align="center">Diskbloom</h1>
 
-**See what's eating your Mac's disk, then clean it up.**
+<p align="center"><b>See what's eating your Mac's disk, then clean it up.</b><br>
+Interactive sunburst map · Trash list · Smart Clean for developer junk<br>
+Rust scanning engine, native SwiftUI app · English and Serbian</p>
 
-Diskbloom is a disk usage analyzer for macOS with an interactive sunburst map,
-a Collector for safe batch deletion, and a Smart Clean mode that finds
-regenerable junk such as build folders, dependency caches and Xcode DerivedData.
-The scanning engine is written in Rust and the app is native SwiftUI.
-
-> Status: early version (v0.2). Expect rough edges. English and Serbian interface.
+> Status: early version (v0.2). Expect rough edges.
 
 ## Features
 
+- **Fast parallel scanner** that measures real (allocated) size, counts hard links once and never follows symlinks.
+- **Sunburst map**: rings are depth, angle is size. Click to zoom in, click the center to go back.
+- **Trash list**: queue items while browsing, see the total, move everything to the Trash in one step.
+- **Smart Clean**: build folders, package and app caches, Xcode data, simulators, emulators, VMs, old installers.
+- **Largest files** with when you last opened them, and **duplicates** (size → partial hash → full BLAKE3 hash).
+- **Disk overview** with used / purgeable / free space and **Time Machine local snapshots**.
+- **Quick Look** (Space), **refresh one folder** (⌘R), views on ⌘1 / ⌘2 / ⌘3, Smart Clean on ⌘K.
+- **CLI** (`bloom`) for the terminal, also on Linux.
+
+<details>
+<summary><b>More about the features</b></summary>
+
 - **Disk overview**: click a disk to see used / purgeable / free space and pick an action:
   scan, Smart Clean, scan only Home, empty Trash, open Storage settings, reveal, eject.
-- **Fast parallel scanner** (Rust + rayon). It measures *allocated* size (`st_blocks`)
-  rather than logical length, counts hard links once, never follows symlinks and stays
+- **Scanner**: measures *allocated* size (`st_blocks`) rather than logical length and stays
   on one volume.
-- **Sunburst map**: rings show depth and angle shows size. Tiny items are merged into
-  "smaller objects". Click to zoom in, click the center to go back.
-- **Percent of parent and of disk** for every item, with a proportion bar in the list.
-- **Collector**: while browsing, click the trash icon on any row (or drag it to the tray)
-  to queue it. See the total, then move everything to the Trash in one step. The map
-  dims queued items and updates in place with no rescan.
-- **Smart Clean**: finds build folders, package and app caches, Xcode DerivedData, iOS
-  simulators, Android emulators, VM disks, old installers and more (see
-  [categories](#clean-categories)). Rules are context-aware: for example, `target/` is only
-  flagged next to a `Cargo.toml`. Regenerable items are preselected; emulators, VMs and
-  backups are only listed for you to review.
-- **Largest files**: the 300 biggest files with when you last opened them (from Spotlight),
-  filterable to "not opened in 6 months / a year".
-- **Duplicates**: finds identical files (size, then a hash of the first 64 KB, then a full
-  BLAKE3 hash). "Keep one" queues the other copies for the Trash.
-- **Time Machine local snapshots**: listed in the disk overview and removable (asks for
-  your admin password). These are often the biggest part of "purgeable" space.
+- **Map**: tiny items are merged into "smaller objects". Every item shows its share of the
+  parent folder and of the disk.
+- **Trash list**: click the trash icon on any row, or drag the row to the tray. The map dims
+  queued items and updates in place, with no rescan.
+- **Smart Clean** rules are context-aware: `target/` is only flagged next to a `Cargo.toml`.
+  Regenerable items are preselected; emulators, VMs and backups are only listed for review.
+  See [clean categories](#clean-categories).
 - **Proper cleanup for developer tools**: iOS simulators are removed with `xcrun simctl`,
   Android emulators together with their `.ini`, and the Docker disk is never deleted;
   Diskbloom offers `docker system prune` instead.
-- **Quick Look** (Space), **refresh one folder** without rescanning everything (⌘R), and
-  keyboard shortcuts for the views (⌘1 map, ⌘2 largest files, ⌘3 duplicates, ⌘K Smart Clean).
-- **Hidden space**: shows the difference between what the volume reports as used and
-  what the scan could see (system volume, snapshots, folders without permission).
-- **CLI** (`bloom`): terminal tree, a standalone HTML sunburst and a dry-run-first cleaner.
-  It also works on Linux.
+- **Largest files**: the 300 biggest files, filterable to "not opened in 6 months / a year".
+- **Duplicates**: "Keep one" queues the other copies for the Trash.
+- **Time Machine snapshots** are often the biggest part of "purgeable" space. Removing them
+  asks for your admin password.
+- **Hidden space**: the difference between what the volume reports as used and what the
+  scan could see (system volume, snapshots, folders without permission).
+
+</details>
 
 ## Install
 
-Diskbloom is not on the App Store yet, so you either download a CI build or build it
-yourself. Both take a few minutes.
+**Download:** get the latest **Diskbloom-x.y.z.dmg** from
+[Releases](https://github.com/NNikolaG/diskbloom/releases/latest) (Apple Silicon, macOS 13+)
+and drag **Diskbloom** to **Applications**. The app is not notarized, so the first time
+right-click it → **Open** → **Open**, or run:
 
-### Option A: download a release
+```bash
+xattr -dr com.apple.quarantine /Applications/Diskbloom.app
+```
 
-1. Download the latest **Diskbloom-x.y.z.dmg** from
-   [Releases](https://github.com/NNikolaG/diskbloom/releases/latest). Release builds are for
-   Apple Silicon Macs (M1 or newer); on an Intel Mac, build from source (Option B).
-2. Open the DMG and drag **Diskbloom** to **Applications**.
-3. The app is not notarized by Apple, so macOS blocks it on first launch. Either
-   right-click the app → **Open** → **Open**, or run:
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Diskbloom.app
-   ```
+Then give it **Full Disk Access** (see below) so it can see the whole disk.
 
-### Option B: build from source
+<details>
+<summary><b>Build from source</b> (Intel Macs, or the latest code)</summary>
 
 Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
 
-1. **Xcode Command Line Tools** (full Xcode is not needed):
+1. Xcode Command Line Tools (full Xcode is not needed):
    ```bash
    xcode-select --install
    ```
-2. **Rust**, either with rustup (recommended, also allows universal builds):
+2. Rust, with rustup (recommended, also allows universal builds):
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
    or with Homebrew: `brew install rust`. Open a new terminal afterwards.
-3. **Build and install** into `/Applications`:
+3. Build and install into `/Applications`:
    ```bash
    git clone https://github.com/NNikolaG/diskbloom.git
    cd diskbloom
@@ -83,15 +80,16 @@ Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
    open -a Diskbloom
    ```
 
-`build.sh` options:
-
 | Command | What it does |
 |---|---|
 | `./macos/build.sh` | builds `macos/build/Diskbloom.app` for this Mac |
 | `./macos/build.sh --install` | builds and replaces `/Applications/Diskbloom.app` (quits the running app first, leaves no second copy in `macos/build`) |
 | `./macos/build.sh --universal` | arm64 + x86_64 in one app (needs rustup) |
 
-### Updating
+</details>
+
+<details>
+<summary><b>Updating</b></summary>
 
 With a release: download the new DMG and drag Diskbloom to Applications again; macOS asks
 to replace the old version. From source, you never need to delete the old version by hand:
@@ -102,38 +100,45 @@ git pull
 ./macos/build.sh --install
 ```
 
-### Full Disk Access
+</details>
 
-Without it macOS hides parts of your disk (Mail, Messages, Safari data, other users,
-some caches), and Diskbloom shows a yellow banner with the number of inaccessible folders.
+<details>
+<summary><b>Full Disk Access</b></summary>
+
+Without it macOS hides parts of your disk (Mail, Messages, Safari data, other users, some
+caches), and Diskbloom shows a yellow banner with the number of folders it could not read.
 
 1. Open **System Settings → Privacy & Security → Full Disk Access** (the banner and the
    disk overview have a button for this).
 2. Turn on **Diskbloom** (use **+** to add it from Applications if it's missing).
 3. Quit and reopen Diskbloom.
 
-**Why it may ask again after every build:** an app built without an Apple certificate
-gets a new ad-hoc signature each time, and macOS treats every build as a different app.
-To keep the permission across updates, add your Apple ID once in **Xcode → Settings →
-Accounts** (a free account is enough). `build.sh` then finds the "Apple Development"
-certificate and signs with it automatically. To use a specific certificate, set it
-explicitly:
+**If it asks again after every build:** an app built without an Apple certificate gets a
+new ad-hoc signature each time, and macOS treats every build as a different app. Add your
+Apple ID once in **Xcode → Settings → Accounts** (a free account is enough); `build.sh`
+then signs with the "Apple Development" certificate automatically. To pick a certificate:
 
 ```bash
 DISKBLOOM_SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)" ./macos/build.sh --install
 ```
 
-### Troubleshooting
+</details>
+
+<details>
+<summary><b>Troubleshooting</b></summary>
 
 | Problem | Fix |
 |---|---|
-| `rustup: command not found` / `cargo: command not found` | Install Rust (step 2) and open a new terminal. |
+| `rustup: command not found` / `cargo: command not found` | Install Rust (build step 2) and open a new terminal. |
 | `xcrun: error: invalid active developer path` | Run `xcode-select --install`. |
-| "Diskbloom can't be opened because Apple cannot check it" | Right-click → **Open**, or remove the quarantine flag (Option A, step 3). |
+| "Diskbloom can't be opened because Apple cannot check it" | Right-click → **Open**, or remove the quarantine flag (see Install). |
 | Scanning **Macintosh HD** shows less than Finder | Grant Full Disk Access. The rest is system data and snapshots, shown as *hidden space*. |
-| Emptying the Trash asks to control Finder | Expected. Diskbloom empties the Trash through Finder, so allow it once. |
+| Emptying the Trash asks to control Finder | Expected: Diskbloom empties the Trash through Finder, so allow it once. |
 
-### Uninstall
+</details>
+
+<details>
+<summary><b>Uninstall</b></summary>
 
 ```bash
 rm -rf /Applications/Diskbloom.app
@@ -141,7 +146,12 @@ rm -rf /Applications/Diskbloom.app
 
 Diskbloom keeps no settings or caches of its own.
 
-## CLI
+</details>
+
+## Command line
+
+<details>
+<summary><b><code>bloom</code>: tree, HTML map and cleaner in the terminal</b></summary>
 
 ```bash
 cargo install --path crates/cli
@@ -152,18 +162,25 @@ bloom clean ~/code                     # dry run: what could be removed
 bloom clean ~/code --delete -c rust-build,node-deps --min-mb 50
 ```
 
+`bloom clean` only lists *safe* categories unless you add `--include-review` or name a
+category with `-c`.
+
+</details>
+
 ## Clean categories
 
-**Safe** categories regenerate on their own and are preselected. **Review** categories
-(emulators, VMs, backups, installers) are listed but never preselected. The CLI only
-includes them with `--include-review`.
+<details>
+<summary><b>What Smart Clean looks for, and what it never touches</b></summary>
 
-Project rules (`node_modules`, `target/`, `build/`, `.venv`…) only apply to your own projects.
-They are never applied inside `node_modules` itself, inside `.app` bundles, in `~/Library`,
-in system folders (`/usr`, `/opt/homebrew`, `/Applications`, …) or in tool folders such as
-`~/.nvm`, `~/.volta`, `~/.fnm`, `~/.bun`, `~/.config/yarn`, `~/.vscode`, `~/.cursor`,
-`~/.cargo` and `~/.rustup`. Global npm/pnpm/yarn/bun packages and editor extensions are
-therefore never offered for removal.
+**Safe** categories regenerate on their own and are preselected. **Review** categories
+(emulators, VMs, backups, installers) are listed but never preselected.
+
+Project rules (`node_modules`, `target/`, `build/`, `.venv`…) only apply to your own
+projects. They never apply inside `node_modules` itself, inside `.app` bundles, in
+`~/Library`, in system folders (`/usr`, `/opt/homebrew`, `/Applications`, …) or in tool
+folders such as `~/.nvm`, `~/.volta`, `~/.fnm`, `~/.bun`, `~/.config/yarn`, `~/.vscode`,
+`~/.cursor`, `~/.cargo` and `~/.rustup`. Global npm/pnpm/yarn/bun packages and editor
+extensions are therefore never offered for removal.
 
 | Category | Matches | |
 |---|---|---|
@@ -189,34 +206,39 @@ therefore never offered for removal.
 | `installers` | `.dmg`, `.pkg`, `.iso`, `.xip` in `~/Downloads` | review |
 | `trash` | `~/.Trash`, `~/.local/share/Trash` | review |
 
-## Language
+</details>
 
-The interface follows the macOS language setting: English by default, Serbian (Latin) when
-Serbian is first in **System Settings → General → Language & Region**. Translations live in
-`macos/Resources/<lang>.lproj/Localizable.strings`; the keys are the English texts, so adding
-a language means copying `sr.lproj` and translating the right-hand side.
+## Development
 
-## Releasing
-
-Push a tag and GitHub Actions builds an Apple Silicon DMG and publishes the release (free for
-public repositories):
-
-```bash
-git tag v0.3.0 && git push origin v0.3.0
-```
-
-## Project layout
+<details>
+<summary><b>Project layout, language, releasing</b></summary>
 
 ```
-crates/core   scanner, arena tree, sunburst layout, clean rules, duplicate finder (unit tested)
+crates/core   scanner, arena tree, sunburst layout, clean rules, duplicate finder
 crates/cli    `bloom` command line tool
 crates/ffi    UniFFI bindings exposing the core to Swift
 macos/        SwiftUI app (Swift Package) + build.sh
 docs/         architecture notes
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how Diskbloom works
-and how each piece maps to the code.
+- **How it works:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Checks and code style:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Security model and review:** [SECURITY.md](SECURITY.md)
+
+**Language.** The interface follows the macOS language setting: English by default,
+Serbian (Latin) when Serbian is first in **System Settings → General → Language & Region**.
+Translations live in `macos/Resources/<lang>.lproj/Localizable.strings`; the keys are the
+English texts, so adding a language means copying `sr.lproj` and translating the
+right-hand side.
+
+**Releasing.** Push a tag and GitHub Actions builds an Apple Silicon DMG and publishes the
+release (free for public repositories):
+
+```bash
+git tag v0.3.0 && git push origin v0.3.0
+```
+
+</details>
 
 ## License
 
