@@ -1,12 +1,19 @@
 //! Parallel file system scanner.
 //!
-//! One `read_dir` per folder and one `lstat` per entry, spread over the rayon pool.
-//! Sizes are *allocated* sizes (`st_blocks * 512`), which is what deleting frees.
+//! Each folder is opened once, read, and every entry is `fstatat`-ed relative to the
+//! open folder, so the kernel resolves one name per entry instead of the whole path
+//! (std's `DirEntry::metadata` does a full-path `lstat` on macOS). The folder is closed
+//! before descending, so open file descriptors do not grow with depth. Work is spread
+//! over the rayon pool. Sizes are *allocated* sizes (`st_blocks * 512`), which is what
+//! deleting frees.
 
 use rayon::prelude::*;
+use rustix::fs::{AtFlags, Dir, FileType, Mode, OFlags, Stat};
 use std::collections::HashSet;
-use std::fs::{self, DirEntry, Metadata};
+use std::ffi::{CString, OsStr};
+use std::fs;
 use std::io;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -73,10 +80,47 @@ pub struct Scanner {
     cancelled: AtomicBool,
 }
 
-/// Size on disk. `st_blocks` is always in 512-byte units, whatever the block size.
-fn alloc_size(m: &Metadata) -> u64 {
-    m.blocks() * 512
+/// The parts of `stat` the scanner uses, independent of the platform's field types.
+#[derive(Clone, Copy)]
+struct Info {
+    kind: FileType,
+    /// Allocated bytes: `st_blocks` is always in 512-byte units, whatever the block size.
+    size: u64,
+    dev: u64,
+    ino: u64,
+    nlink: u64,
 }
+
+fn to_u64<T: TryInto<u64>>(value: T) -> u64 {
+    value.try_into().unwrap_or(0)
+}
+
+impl From<&Stat> for Info {
+    fn from(st: &Stat) -> Self {
+        Self {
+            kind: FileType::from_raw_mode(st.st_mode),
+            size: to_u64(st.st_blocks) * 512,
+            dev: to_u64(st.st_dev),
+            ino: to_u64(st.st_ino),
+            nlink: to_u64(st.st_nlink),
+        }
+    }
+}
+
+impl From<&fs::Metadata> for Info {
+    fn from(m: &fs::Metadata) -> Self {
+        Self {
+            kind: FileType::from_raw_mode(m.mode() as _),
+            size: m.blocks() * 512,
+            dev: m.dev(),
+            ino: m.ino(),
+            nlink: m.nlink(),
+        }
+    }
+}
+
+/// Entries below this count are stat-ed on one thread; splitting them costs more than it saves.
+const PARALLEL_STAT_MIN: usize = 64;
 
 impl Scanner {
     /// Prepares a scan of `root`. With `cross_fs = false` the scan stays on the volume
@@ -129,55 +173,93 @@ impl Scanner {
     /// Fails only if the root itself cannot be read; unreadable entries below it are
     /// counted in [`Scanner::errors`] and skipped.
     pub fn scan(&self) -> io::Result<Node> {
-        let m = fs::symlink_metadata(&self.root)?;
+        let info = Info::from(&fs::symlink_metadata(&self.root)?);
         let name = self.root.to_string_lossy().into_owned();
-        Ok(self.visit(&self.root, name, &m))
+        self.scanned.fetch_add(1, Ordering::Relaxed);
+        if info.kind == FileType::Directory {
+            Ok(self.visit_dir(&self.root, name, info))
+        } else {
+            Ok(Node::file(name, self.counted_size(&info)))
+        }
     }
 
-    fn visit(&self, path: &Path, name: String, m: &Metadata) -> Node {
-        self.scanned.fetch_add(1, Ordering::Relaxed);
-
-        if !m.is_dir() {
-            return Node::file(name, self.counted_size(m));
-        }
-        let own = alloc_size(m);
-        let other_volume = !self.cross_fs && m.dev() != self.root_dev;
+    fn visit_dir(&self, path: &Path, name: String, info: Info) -> Node {
+        let other_volume = !self.cross_fs && info.dev != self.root_dev;
         if self.is_cancelled() || other_volume {
-            return Node::unread_dir(name, own);
+            return Node::unread_dir(name, info.size);
         }
-        let Ok(read_dir) = fs::read_dir(path) else {
+        let Ok(entries) = self.read_dir(path) else {
             self.count_error();
-            return Node::unread_dir(name, own);
+            return Node::unread_dir(name, info.size);
         };
-        let entries: Vec<DirEntry> = read_dir
-            .filter_map(|e| e.inspect_err(|_| self.count_error()).ok())
-            .collect();
-
-        // DirEntry::metadata does not follow symlinks (lstat semantics).
+        self.scanned
+            .fetch_add(entries.len() as u64, Ordering::Relaxed);
         let children = entries
-            .par_iter()
-            .filter_map(|e| {
-                let cm = e.metadata().inspect_err(|_| self.count_error()).ok()?;
-                let child_name = e.file_name().to_string_lossy().into_owned();
-                Some(self.visit(&e.path(), child_name, &cm))
+            .into_par_iter()
+            .map(|(child, child_info)| {
+                let child_name = String::from_utf8_lossy(child.as_bytes()).into_owned();
+                if child_info.kind == FileType::Directory {
+                    let child_path = path.join(OsStr::from_bytes(child.as_bytes()));
+                    self.visit_dir(&child_path, child_name, child_info)
+                } else {
+                    Node::file(child_name, self.counted_size(&child_info))
+                }
             })
             .collect();
-        Node::dir(name, own, children)
+        Node::dir(name, info.size, children)
+    }
+
+    /// Names and stat info of everything in `path` (not following symlinks). The folder
+    /// is closed when this returns.
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<(CString, Info)>> {
+        let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+        let mut dir = Dir::new(rustix::fs::open(path, flags, Mode::empty())?)?;
+        let mut names = Vec::new();
+        for entry in dir.by_ref() {
+            match entry {
+                Ok(entry) => {
+                    let name = entry.file_name();
+                    if name != c"." && name != c".." {
+                        names.push(name.to_owned());
+                    }
+                }
+                Err(_) => self.count_error(),
+            }
+        }
+        let fd = dir.fd()?;
+        let stat = |name: CString| {
+            let st = rustix::fs::statat(fd, name.as_c_str(), AtFlags::SYMLINK_NOFOLLOW);
+            if let Ok(st) = st {
+                Some((name, Info::from(&st)))
+            } else {
+                self.count_error();
+                None
+            }
+        };
+        Ok(if names.len() < PARALLEL_STAT_MIN {
+            names.into_iter().filter_map(stat).collect()
+        } else {
+            names
+                .into_par_iter()
+                .with_min_len(PARALLEL_STAT_MIN / 2)
+                .filter_map(stat)
+                .collect()
+        })
     }
 
     /// Hard links share their blocks, so only the first link seen is counted.
-    fn counted_size(&self, m: &Metadata) -> u64 {
-        if m.nlink() > 1 && !m.is_symlink() {
+    fn counted_size(&self, info: &Info) -> u64 {
+        if info.nlink > 1 && info.kind != FileType::Symlink {
             let first = self
                 .seen_inodes
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .insert((m.dev(), m.ino()));
+                .insert((info.dev, info.ino));
             if !first {
                 return 0;
             }
         }
-        alloc_size(m)
+        info.size
     }
 
     fn count_error(&self) {
