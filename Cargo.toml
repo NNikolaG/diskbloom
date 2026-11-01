@@ -5,11 +5,31 @@ members = ["crates/core", "crates/cli", "crates/ffi"]
 [workspace.package]
 version = "0.2.0"
 edition = "2024"
+rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/NNikolaG/diskbloom"
 
 [workspace.dependencies]
 diskbloom-core = { path = "crates/core" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Sizes are u64 byte counts shown as fractions or human-readable numbers; f64 is
+# exact up to 9 PB, far beyond any disk.
+cast_precision_loss = "allow"
+# Node ids are u32 by design (arena index, see tree.rs); trees above 4 billion
+# entries are not supported.
+cast_possible_truncation = "allow"
+# Float-to-integer casts are on values clamped to be non-negative first.
+cast_sign_loss = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+unwrap_used = "warn"
+expect_used = "warn"
 
 [profile.release]
 lto = true

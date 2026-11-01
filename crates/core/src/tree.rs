@@ -1,106 +1,112 @@
-//! Arena stablo: ravna lista cvorova adresiranih preko `NodeId`.
+//! Arena tree: a flat list of entries addressed by [`NodeId`].
 //!
-//! Ovo je model koji UI koristi: lako se prenosi preko FFI granice (samo brojevi),
-//! podrzava lokalno azuriranje posle brisanja bez ponovnog skeniranja,
-//! i racuna sunburst raspored (`layout`) tako da Swift samo crta.
+//! This is the model the app works with. Only numbers cross the FFI boundary, the
+//! tree can be updated in place after a delete or a folder refresh without a full
+//! rescan, and the sunburst geometry is computed here ([`Tree::layout`]) so the UI
+//! only draws.
+
+mod layout;
+
+pub use layout::Segment;
 
 use crate::scan::Node;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
 use std::path::{Component, Path, PathBuf};
 
+/// Index of an entry in a [`Tree`]. Ids stay valid after removals; removed entries
+/// are detached (see [`Tree::is_attached`]) rather than reused.
 pub type NodeId = u32;
 
+/// One file or folder in a [`Tree`].
 #[derive(Debug, Clone)]
 pub struct Entry {
+    /// File name (the full scanned path for the root).
     pub name: String,
+    /// Allocated size in bytes, including descendants.
     pub size: u64,
+    /// Number of files below this entry.
     pub files: u64,
+    /// Whether this is a folder.
     pub is_dir: bool,
+    /// `None` for the root and for detached entries.
     pub parent: Option<NodeId>,
-    /// Sortirano po velicini, najvece prvo.
+    /// Sorted by size, largest first.
     pub children: Vec<NodeId>,
 }
 
+/// A scanned folder tree.
 #[derive(Debug, Clone)]
 pub struct Tree {
     entries: Vec<Entry>,
     root_path: PathBuf,
 }
 
-/// Jedan luk sunburst-a. Uglovi su u razlomcima kruga (0.0..=1.0).
-#[derive(Debug, Clone, PartialEq)]
-pub struct Segment {
-    /// `None` = zbirni segment "smaller objects".
-    pub id: Option<NodeId>,
-    /// Roditelj u stablu (za zbirni segment: cvor ciju decu sabira).
-    pub parent: NodeId,
-    /// 0 = prvi prsten oko centra.
-    pub depth: u32,
-    pub start: f64,
-    pub end: f64,
-    /// Boja grane: sredina pretka u prvom prstenu, 0.0..1.0.
-    pub hue: f64,
-    pub size: u64,
-    /// Za zbirni segment: koliko objekata sadrzi.
-    pub aggregated: u32,
-}
-
 impl Tree {
-    /// `root_path` je apsolutna putanja skeniranog korena.
+    /// Flattens a scan result. `root_path` is the absolute path that was scanned.
     pub fn from_node(root: Node, root_path: PathBuf) -> Self {
         let mut entries = Vec::new();
         push(&mut entries, root, None);
         Tree { entries, root_path }
     }
 
+    /// The root entry, always `0`.
     pub fn root(&self) -> NodeId {
         0
     }
 
+    /// The absolute path that was scanned.
     pub fn root_path(&self) -> &Path {
         &self.root_path
     }
 
+    /// Number of entries, including detached ones.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Whether the tree has no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// The entry for `id`, if it exists.
     pub fn get(&self, id: NodeId) -> Option<&Entry> {
         self.entries.get(id as usize)
     }
 
-    fn e(&self, id: NodeId) -> &Entry {
+    /// For ids that come from the tree itself, which are always valid.
+    fn entry(&self, id: NodeId) -> &Entry {
         &self.entries[id as usize]
     }
 
+    /// Children of `id`, largest first. Empty for unknown ids.
     pub fn children(&self, id: NodeId) -> &[NodeId] {
-        self.get(id).map(|e| e.children.as_slice()).unwrap_or(&[])
+        self.get(id).map_or(&[], |e| e.children.as_slice())
     }
 
-    /// Lanac od korena do `id` (ukljucujuci oba).
+    /// The chain from the root down to `id`, both included.
     pub fn ancestors(&self, id: NodeId) -> Vec<NodeId> {
-        let mut v = vec![id];
+        let mut chain = vec![id];
         let mut cur = id;
-        while let Some(p) = self.get(cur).and_then(|e| e.parent) {
-            v.push(p);
-            cur = p;
+        while let Some(parent) = self.get(cur).and_then(|e| e.parent) {
+            chain.push(parent);
+            cur = parent;
         }
-        v.reverse();
-        v
+        chain.reverse();
+        chain
     }
 
+    /// Absolute path of `id`.
     pub fn path(&self, id: NodeId) -> PathBuf {
-        let mut p = self.root_path.clone();
+        let mut path = self.root_path.clone();
         for a in self.ancestors(id).into_iter().skip(1) {
-            p.push(&self.e(a).name);
+            path.push(&self.entry(a).name);
         }
-        p
+        path
     }
 
-    /// Nalazi cvor po apsolutnoj putanji.
+    /// Finds an entry by absolute path.
     pub fn find(&self, path: &Path) -> Option<NodeId> {
         let rel = path.strip_prefix(&self.root_path).ok()?;
         let mut cur = self.root();
@@ -112,224 +118,152 @@ impl Tree {
             cur = *self
                 .children(cur)
                 .iter()
-                .find(|&&c| self.e(c).name == name)?;
+                .find(|&&c| self.entry(c).name == name)?;
         }
         Some(cur)
     }
 
-    /// Uklanja cvor (posle brisanja sa diska) i azurira velicine predaka.
-    /// Vraca broj oslobodjenih bajtova. Koren se ne moze ukloniti.
+    /// Removes an entry after it was deleted from disk and updates the sizes of its
+    /// ancestors. Returns the bytes freed. The root cannot be removed.
     pub fn remove(&mut self, id: NodeId) -> u64 {
         let Some(entry) = self.get(id) else { return 0 };
         let Some(parent) = entry.parent else { return 0 };
         let (size, files) = (entry.size, entry.files);
         self.entries[parent as usize].children.retain(|&c| c != id);
         self.entries[id as usize].parent = None;
-        let mut cur = Some(parent);
-        while let Some(p) = cur {
-            let e = &mut self.entries[p as usize];
-            e.size = e.size.saturating_sub(size);
-            e.files = e.files.saturating_sub(files);
-            cur = e.parent;
-            if let Some(gp) = cur {
-                self.resort(gp);
-            }
-        }
+        self.adjust_ancestors(
+            parent,
+            |s| s.saturating_sub(size),
+            |f| f.saturating_sub(files),
+        );
         size
     }
 
-    fn resort(&mut self, id: NodeId) {
-        let mut kids = std::mem::take(&mut self.entries[id as usize].children);
-        kids.sort_by_key(|&k| std::cmp::Reverse(self.e(k).size));
-        self.entries[id as usize].children = kids;
-    }
-
-    /// Da li je cvor jos uvek deo stabla (nije uklonjen ni on ni neki predak).
+    /// Whether the entry is still part of the tree (neither it nor an ancestor was removed).
     pub fn is_attached(&self, id: NodeId) -> bool {
         self.ancestors(id).first() == Some(&self.root())
     }
 
-    /// Zamenjuje podstablo `id` novim skeniranjem tog foldera ("osvezi samo ovaj folder").
-    /// Velicine predaka se azuriraju za razliku. Vraca ID novog cvora.
-    pub fn replace_subtree(&mut self, id: NodeId, node: Node) -> NodeId {
+    /// Replaces the subtree at `id` with a fresh scan of that folder and adjusts the
+    /// ancestors by the difference. Returns the id of the new entry.
+    pub fn replace_subtree(&mut self, id: NodeId, mut node: Node) -> NodeId {
         let Some(old) = self.get(id) else { return id };
-        let name = old.name.clone();
+        // The scanner names its root by full path; keep the short name.
+        node.name.clone_from(&old.name);
         let (old_size, old_files) = (old.size, old.files);
         let Some(parent) = old.parent else {
-            // koren: celo stablo iz pocetka
-            let root_path = self.root_path.clone();
-            let mut node = node;
-            node.name = self.e(id).name.clone();
+            let root_path = std::mem::take(&mut self.root_path);
             *self = Tree::from_node(node, root_path);
             return self.root();
         };
-        let mut node = node;
-        node.name = name; // skener daje punu putanju kao ime korena
         let (new_size, new_files) = (node.size, node.files);
         let new_id = push(&mut self.entries, node, Some(parent));
-        let kids = &mut self.entries[parent as usize].children;
-        if let Some(slot) = kids.iter_mut().find(|c| **c == id) {
+        if let Some(slot) = self.entries[parent as usize]
+            .children
+            .iter_mut()
+            .find(|c| **c == id)
+        {
             *slot = new_id;
         }
         self.entries[id as usize].parent = None;
-        let mut cur = Some(parent);
-        while let Some(p) = cur {
-            let e = &mut self.entries[p as usize];
-            e.size = (e.size + new_size).saturating_sub(old_size);
-            e.files = (e.files + new_files).saturating_sub(old_files);
-            self.resort(p);
-            cur = self.entries[p as usize].parent;
-        }
+        self.adjust_ancestors(
+            parent,
+            |s| (s + new_size).saturating_sub(old_size),
+            |f| (f + new_files).saturating_sub(old_files),
+        );
         new_id
     }
 
-    /// Najveci fajlovi u celom stablu (najvise `limit`, svaki bar `min_size`), najveci prvi.
-    pub fn largest_files(&self, limit: usize, min_size: u64) -> Vec<NodeId> {
-        use std::cmp::Reverse;
-        use std::collections::BinaryHeap;
-        let mut heap: BinaryHeap<Reverse<(u64, NodeId)>> = BinaryHeap::new();
-        let mut stack = vec![self.root()];
-        while let Some(id) = stack.pop() {
-            let e = self.e(id);
-            if e.is_dir {
-                // deca su sortirana: ako je dir manji od praga, nista u njemu nije vece
-                if e.size >= min_size {
-                    stack.extend(e.children.iter().copied());
-                }
-            } else if e.size >= min_size {
-                heap.push(Reverse((e.size, id)));
-                if heap.len() > limit {
-                    heap.pop();
-                }
-            }
-        }
-        let mut v: Vec<_> = heap.into_iter().map(|Reverse((s, id))| (s, id)).collect();
-        v.sort_by_key(|&(s, _)| Reverse(s));
-        v.into_iter().map(|(_, id)| id).collect()
-    }
-
-    /// Fajlovi (bar `min_size`) grupisani po velicini, samo grupe sa 2+ fajla.
-    /// Prvi korak u trazenju duplikata.
-    pub fn same_size_groups(&self, min_size: u64) -> Vec<Vec<NodeId>> {
-        let mut by_size: std::collections::HashMap<u64, Vec<NodeId>> =
-            std::collections::HashMap::new();
-        let mut stack = vec![self.root()];
-        while let Some(id) = stack.pop() {
-            let e = self.e(id);
-            if e.is_dir {
-                if e.size >= min_size {
-                    stack.extend(e.children.iter().copied());
-                }
-            } else if e.size >= min_size {
-                by_size.entry(e.size).or_default().push(id);
-            }
-        }
-        by_size.into_values().filter(|v| v.len() > 1).collect()
-    }
-
-    /// Racuna sunburst oko `focus`: `rings` prstenova, objekti manji od
-    /// `min_fraction` kruga spajaju se u jedan zbirni segment po roditelju.
-    pub fn layout(&self, focus: NodeId, rings: u32, min_fraction: f64) -> Vec<Segment> {
-        let mut out = Vec::new();
-        let Some(f) = self.get(focus) else { return out };
-        if f.size == 0 || rings == 0 {
-            return out;
-        }
-        self.layout_rec(
-            focus,
-            f.size as f64,
-            0.0,
-            0,
-            rings,
-            min_fraction,
-            None,
-            &mut out,
-        );
-        out
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn layout_rec(
-        &self,
-        node: NodeId,
-        total: f64,
-        start: f64,
-        depth: u32,
-        rings: u32,
-        min_fraction: f64,
-        hue: Option<f64>,
-        out: &mut Vec<Segment>,
+    /// Applies new totals from `from` up to the root, keeping every child list sorted.
+    fn adjust_ancestors(
+        &mut self,
+        from: NodeId,
+        size: impl Fn(u64) -> u64,
+        files: impl Fn(u64) -> u64,
     ) {
-        let mut a = start;
-        let (mut small_start, mut small_size, mut small_n) = (None, 0u64, 0u32);
-        for &c in self.children(node) {
-            let e = self.e(c);
-            if e.size == 0 {
+        let mut cur = Some(from);
+        while let Some(id) = cur {
+            let e = &mut self.entries[id as usize];
+            e.size = size(e.size);
+            e.files = files(e.files);
+            self.sort_children(id);
+            cur = self.entries[id as usize].parent;
+        }
+    }
+
+    fn sort_children(&mut self, id: NodeId) {
+        let mut kids = std::mem::take(&mut self.entries[id as usize].children);
+        kids.sort_by_key(|&k| Reverse(self.entry(k).size));
+        self.entries[id as usize].children = kids;
+    }
+
+    /// Visits every file of at least `min_size` bytes. Folders smaller than that are
+    /// skipped entirely, since nothing inside can be larger.
+    fn files_at_least(&self, min_size: u64, mut f: impl FnMut(NodeId, &Entry)) {
+        let mut stack = vec![self.root()];
+        while let Some(id) = stack.pop() {
+            let e = self.entry(id);
+            if e.size < min_size {
                 continue;
             }
-            let frac = e.size as f64 / total;
-            if frac < min_fraction {
-                small_start.get_or_insert(a);
-                small_size += e.size;
-                small_n += 1;
-                a += frac;
-                continue;
+            if e.is_dir {
+                stack.extend(e.children.iter().copied());
+            } else {
+                f(id, e);
             }
-            let h = hue.unwrap_or(a + frac / 2.0);
-            out.push(Segment {
-                id: Some(c),
-                parent: node,
-                depth,
-                start: a,
-                end: a + frac,
-                hue: h,
-                size: e.size,
-                aggregated: 0,
-            });
-            if depth + 1 < rings && !e.children.is_empty() {
-                self.layout_rec(c, total, a, depth + 1, rings, min_fraction, Some(h), out);
+        }
+    }
+
+    /// The `limit` largest files of at least `min_size` bytes, largest first.
+    pub fn largest_files(&self, limit: usize, min_size: u64) -> Vec<NodeId> {
+        let mut heap = BinaryHeap::with_capacity(limit + 1);
+        self.files_at_least(min_size, |id, e| {
+            heap.push(Reverse((e.size, id)));
+            if heap.len() > limit {
+                heap.pop();
             }
-            a += frac;
-        }
-        if let Some(s) = small_start {
-            let frac = small_size as f64 / total;
-            out.push(Segment {
-                id: None,
-                parent: node,
-                depth,
-                start: s,
-                end: s + frac,
-                hue: hue.unwrap_or(s + frac / 2.0),
-                size: small_size,
-                aggregated: small_n,
-            });
-        }
+        });
+        // Ascending order of Reverse(..) is descending size.
+        heap.into_sorted_vec()
+            .into_iter()
+            .map(|Reverse((_, id))| id)
+            .collect()
+    }
+
+    /// Files of at least `min_size` bytes grouped by size, only groups of two or more.
+    /// This is the first step of the duplicate search.
+    pub fn same_size_groups(&self, min_size: u64) -> Vec<Vec<NodeId>> {
+        let mut by_size: HashMap<u64, Vec<NodeId>> = HashMap::new();
+        self.files_at_least(min_size, |id, e| {
+            by_size.entry(e.size).or_default().push(id);
+        });
+        by_size.into_values().filter(|v| v.len() > 1).collect()
     }
 }
 
-fn push(entries: &mut Vec<Entry>, n: Node, parent: Option<NodeId>) -> NodeId {
+fn push(entries: &mut Vec<Entry>, node: Node, parent: Option<NodeId>) -> NodeId {
     let id = entries.len() as NodeId;
     entries.push(Entry {
-        name: n.name,
-        size: n.size,
-        files: n.files,
-        is_dir: n.is_dir,
+        name: node.name,
+        size: node.size,
+        files: node.files,
+        is_dir: node.is_dir,
         parent,
-        children: Vec::with_capacity(n.children.len()),
+        children: Vec::with_capacity(node.children.len()),
     });
-    // Deca su vec sortirana u skeneru.
-    for c in n.children {
-        let cid = push(entries, c, Some(id));
+    // Children are already sorted by the scanner.
+    for child in node.children {
+        let cid = push(entries, child, Some(id));
         entries[id as usize].children.push(cid);
     }
     id
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn leaf(name: &str, size: u64) -> Node {
+    pub fn leaf(name: &str, size: u64) -> Node {
         Node {
             name: name.into(),
             size,
@@ -338,20 +272,20 @@ mod tests {
             children: vec![],
         }
     }
-    fn dir(name: &str, children: Vec<Node>) -> Node {
-        let size = children.iter().map(|c| c.size).sum();
-        let files = children.iter().map(|c| c.files).sum();
-        let mut children = children;
-        children.sort_by_key(|c| std::cmp::Reverse(c.size));
+
+    pub fn dir(name: &str, mut children: Vec<Node>) -> Node {
+        children.sort_by_key(|c| Reverse(c.size));
         Node {
             name: name.into(),
-            size,
-            files,
+            size: children.iter().map(|c| c.size).sum(),
+            files: children.iter().map(|c| c.files).sum(),
             is_dir: true,
             children,
         }
     }
-    fn sample() -> Tree {
+
+    /// `/r` = a/ (a1 600, a2 100), b 200, tiny1 50, tiny2 50.
+    pub fn sample() -> Tree {
         let root = dir(
             "/r",
             vec![
@@ -364,8 +298,12 @@ mod tests {
         Tree::from_node(root, PathBuf::from("/r"))
     }
 
+    fn name(t: &Tree, id: NodeId) -> &str {
+        &t.get(id).unwrap().name
+    }
+
     #[test]
-    fn find_and_path_roundtrip() {
+    fn find_and_path_round_trip() {
         let t = sample();
         let a2 = t.find(Path::new("/r/a/a2")).unwrap();
         assert_eq!(t.path(a2), PathBuf::from("/r/a/a2"));
@@ -374,39 +312,22 @@ mod tests {
     }
 
     #[test]
-    fn layout_aggregates_small_objects() {
-        let t = sample();
-        let segs = t.layout(t.root(), 3, 0.06);
-        let ring0: Vec<_> = segs.iter().filter(|s| s.depth == 0).collect();
-        // a (700), b (200), zbirno (tiny1 + tiny2 = 100 = 10%)
-        assert_eq!(ring0.len(), 3);
-        let agg = ring0.iter().find(|s| s.id.is_none()).unwrap();
-        assert_eq!((agg.size, agg.aggregated), (100, 2));
-        assert!((ring0.iter().map(|s| s.end - s.start).sum::<f64>() - 1.0).abs() < 1e-9);
-        // deca od "a" su u drugom prstenu i nasledjuju boju
-        let a = ring0[0];
-        let ring1: Vec<_> = segs.iter().filter(|s| s.depth == 1).collect();
-        assert_eq!(ring1.len(), 2);
-        assert!(
-            ring1
-                .iter()
-                .all(|s| s.hue == a.hue && s.parent == a.id.unwrap())
-        );
-    }
-
-    #[test]
-    fn largest_files_and_same_size() {
+    fn largest_files_returns_biggest_first() {
         let t = sample();
         let names: Vec<_> = t
             .largest_files(2, 0)
-            .iter()
-            .map(|&i| t.get(i).unwrap().name.clone())
+            .into_iter()
+            .map(|id| name(&t, id))
             .collect();
         assert_eq!(names, vec!["a1", "b"]);
-        let mut g = t.same_size_groups(1);
-        assert_eq!(g.len(), 1); // tiny1 + tiny2 (po 50)
-        g[0].sort();
-        assert_eq!(g[0].len(), 2);
+    }
+
+    #[test]
+    fn same_size_groups_needs_two_files_above_minimum() {
+        let t = sample();
+        let groups = t.same_size_groups(1);
+        assert_eq!(groups.len(), 1); // tiny1 + tiny2
+        assert_eq!(groups[0].len(), 2);
         assert!(t.same_size_groups(60).is_empty());
     }
 
@@ -420,11 +341,21 @@ mod tests {
         );
         let new_a = t.replace_subtree(a, fresh);
         assert_ne!(new_a, a);
-        assert_eq!(t.get(new_a).unwrap().name, "a"); // ime ostaje, ne puna putanja
+        assert_eq!(name(&t, new_a), "a"); // short name, not the scanned path
         assert_eq!(t.get(0).unwrap().size, 2000);
         assert_eq!(t.find(Path::new("/r/a/a3")), Some(t.children(new_a)[0]));
         assert!(!t.is_attached(a));
         assert!(t.is_attached(new_a));
+    }
+
+    #[test]
+    fn replace_root_rebuilds_tree() {
+        let mut t = sample();
+        let id = t.replace_subtree(0, dir("/r", vec![leaf("only", 5)]));
+        assert_eq!(id, 0);
+        assert_eq!(name(&t, 0), "/r");
+        assert_eq!(t.root_path(), Path::new("/r"));
+        assert_eq!(t.len(), 2);
     }
 
     #[test]
@@ -435,8 +366,8 @@ mod tests {
         let a = t.find(Path::new("/r/a")).unwrap();
         assert_eq!(t.get(a).unwrap().size, 100);
         assert_eq!(t.get(0).unwrap().size, 400);
-        // "b" (200) je sada veci od "a" (100)
-        assert_eq!(t.get(t.children(0)[0]).unwrap().name, "b");
+        // b (200) is now larger than a (100)
+        assert_eq!(name(&t, t.children(0)[0]), "b");
         assert_eq!(t.find(Path::new("/r/a/a1")), None);
         assert_eq!(t.remove(0), 0);
     }

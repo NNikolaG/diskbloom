@@ -1,64 +1,63 @@
-//! Vizualizacija (sloj 4): tekstualno stablo i samostalni HTML sunburst.
+//! Output: a text tree for the terminal and a self-contained HTML sunburst.
 
-use diskbloom_core::{NodeId, Tree, human};
+use diskbloom_core::{Entry, NodeId, Tree, human};
 use std::fmt::Write;
 
+/// Prints `depth` levels of the tree with at most `top` items per level.
 pub fn print_tree(t: &Tree, depth: usize, top: usize) {
-    let root = t.get(t.root()).unwrap();
+    let Some(root) = t.get(t.root()) else { return };
     println!(
-        "{}  {}  ({} fajlova)",
+        "{}  {}  ({} files)",
         human(root.size),
         root.name,
         root.files
     );
-    walk(t, t.root(), root.size.max(1), depth, top, "");
+    print_level(t, t.root(), root.size.max(1), depth, top, "");
 }
 
-fn walk(t: &Tree, id: NodeId, total: u64, depth: usize, top: usize, prefix: &str) {
+fn print_level(t: &Tree, id: NodeId, total: u64, depth: usize, top: usize, prefix: &str) {
     if depth == 0 {
         return;
     }
-    let kids = t.children(id);
-    let shown: Vec<_> = kids
+    let kids: Vec<(NodeId, &Entry)> = t
+        .children(id)
         .iter()
-        .take(top)
-        .map(|&c| (c, t.get(c).unwrap()))
+        .filter_map(|&c| Some((c, t.get(c)?)))
         .collect();
-    let rest: Vec<_> = kids.iter().skip(top).map(|&c| t.get(c).unwrap()).collect();
-    let count = shown.len() + usize::from(!rest.is_empty());
-    for (i, (cid, c)) in shown.iter().enumerate() {
-        let last = i + 1 == count;
+    let (shown, rest) = kids.split_at(top.min(kids.len()));
+    let rows = shown.len() + usize::from(!rest.is_empty());
+    for (i, &(cid, c)) in shown.iter().enumerate() {
+        let last = i + 1 == rows;
         let pct = c.size as f64 * 100.0 / total as f64;
-        let bar = "█".repeat(((pct / 5.0).round() as usize).min(20));
+        let bar = "█".repeat((pct / 5.0).round().clamp(0.0, 20.0) as usize);
         println!(
-            "{prefix}{} {:>9} {:>5.1}% {:<20} {}{}",
+            "{prefix}{} {:>9} {pct:>5.1}% {bar:<20} {}{}",
             if last { "└─" } else { "├─" },
             human(c.size),
-            pct,
-            bar,
             c.name,
             if c.is_dir { "/" } else { "" }
         );
-        let np = format!("{prefix}{}", if last { "   " } else { "│  " });
-        walk(t, *cid, total, depth - 1, top, &np);
+        let child_prefix = format!("{prefix}{}", if last { "   " } else { "│  " });
+        print_level(t, cid, total, depth - 1, top, &child_prefix);
     }
     if !rest.is_empty() {
-        let s: u64 = rest.iter().map(|c| c.size).sum();
+        let size: u64 = rest.iter().map(|(_, c)| c.size).sum();
         println!(
-            "{prefix}└─ {:>9}        … {} manjih objekata",
-            human(s),
+            "{prefix}└─ {:>9}        … {} smaller items",
+            human(size),
             rest.len()
         );
     }
 }
 
+/// A JSON string literal that is also safe inside `<script>`.
 fn json_str(out: &mut String, s: &str) {
     out.push('"');
     for ch in s.chars() {
         match ch {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
-            '<' => out.push_str("\\u003c"), // da </script> ne prekine HTML
+            '<' => out.push_str("\\u003c"), // so a name cannot close the script tag
             c if (c as u32) < 0x20 => {
                 let _ = write!(out, "\\u{:04x}", c as u32);
             }
@@ -68,9 +67,11 @@ fn json_str(out: &mut String, s: &str) {
     out.push('"');
 }
 
-/// Serijalizuje stablo, spajajuci cvorove manje od `min_bytes` u "smaller objects".
+/// Serializes the tree, merging entries smaller than `min_bytes` into "smaller objects".
+/// Keys are short to keep large maps small: n(ame), s(ize), f(iles), d(ir), c(hildren),
+/// x (aggregate).
 fn to_json(t: &Tree, id: NodeId, min_bytes: u64, depth: usize, out: &mut String) {
-    let n = t.get(id).unwrap();
+    let Some(n) = t.get(id) else { return };
     out.push_str("{\"n\":");
     json_str(out, &n.name);
     let _ = write!(out, ",\"s\":{},\"f\":{}", n.size, n.files);
@@ -82,7 +83,7 @@ fn to_json(t: &Tree, id: NodeId, min_bytes: u64, depth: usize, out: &mut String)
         let mut first = true;
         let (mut small_size, mut small_count) = (0u64, 0usize);
         for &cid in &n.children {
-            let c = t.get(cid).unwrap();
+            let Some(c) = t.get(cid) else { continue };
             if c.size < min_bytes {
                 small_size += c.size;
                 small_count += 1;
@@ -108,10 +109,23 @@ fn to_json(t: &Tree, id: NodeId, min_bytes: u64, depth: usize, out: &mut String)
     out.push('}');
 }
 
+/// The standalone HTML page with the map.
 pub fn html(t: &Tree, min_angle_deg: f64, max_depth: usize) -> String {
-    let root = t.get(t.root()).unwrap();
-    let min_bytes = (root.size as f64 * min_angle_deg / 360.0) as u64;
+    let root_size = t.get(t.root()).map_or(0, |r| r.size);
+    let min_bytes = (root_size as f64 * min_angle_deg.max(0.0) / 360.0) as u64;
     let mut data = String::new();
     to_json(t, t.root(), min_bytes.max(1), max_depth, &mut data);
     include_str!("sunburst.html").replace("/*DATA*/null", &data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_str_escapes_script_end_and_controls() {
+        let mut out = String::new();
+        json_str(&mut out, "a\"b</script>\n");
+        assert_eq!(out, r#""a\"b\u003c/script>\u000a""#);
+    }
 }

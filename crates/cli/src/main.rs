@@ -1,15 +1,22 @@
+//! `bloom`: the Diskbloom command line.
+
+mod clean_cmd;
 mod render;
 
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use diskbloom_core::{Scanner, Tree, clean, human};
-use std::collections::BTreeMap;
-use std::io::{IsTerminal, Write};
+use diskbloom_core::{Scanner, Tree};
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(name = "bloom", version, about = "diskbloom: analiza i ciscenje diska")]
+#[command(
+    name = "bloom",
+    version,
+    about = "Diskbloom: see what takes up disk space and clean it up"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -17,214 +24,107 @@ struct Cli {
 
 #[derive(clap::Args)]
 struct ScanOpts {
-    /// Folder koji se skenira
+    /// Folder to scan
     #[arg(default_value = ".")]
     path: PathBuf,
-    /// Ulazi i u druge mount-ovane volumene
+    /// Also enter other mounted volumes
     #[arg(long)]
     cross_fs: bool,
 }
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Tekstualni pregled najvecih foldera/fajlova
+    /// Print the biggest folders and files as a tree
     Top {
         #[command(flatten)]
         scan: ScanOpts,
-        /// Dubina stabla
+        /// Tree depth
         #[arg(short, long, default_value_t = 2)]
         depth: usize,
-        /// Koliko stavki po nivou
+        /// Items per level
         #[arg(short = 'n', long, default_value_t = 10)]
         top: usize,
     },
-    /// Interaktivna sunburst mapa u HTML fajlu
+    /// Write an interactive sunburst map to an HTML file
     Map {
         #[command(flatten)]
         scan: ScanOpts,
-        /// Izlazni HTML fajl
+        /// Output HTML file
         #[arg(short, long, default_value = "diskbloom.html")]
         out: PathBuf,
-        /// Objekti manji od ovog ugla (stepeni) idu u "smaller objects"
+        /// Items narrower than this angle (degrees) are merged into "smaller objects"
         #[arg(long, default_value_t = 0.05)]
         min_angle: f64,
-        /// Maksimalna dubina u HTML-u
+        /// Maximum depth stored in the HTML
         #[arg(long, default_value_t = 14)]
         max_depth: usize,
     },
-    /// Pronalazi regenerisivo smece (build, kes, deps). Dry-run po defaultu.
+    /// Find regenerable data (builds, caches, dependencies). Dry run unless --delete.
     Clean {
         #[command(flatten)]
         scan: ScanOpts,
-        /// Zaista obrisi (uz potvrdu)
-        #[arg(long)]
-        delete: bool,
-        /// Bez pitanja za potvrdu (samo uz --delete)
-        #[arg(short, long)]
-        yes: bool,
-        /// Samo ove kategorije (npr. rust-build,node-deps)
-        #[arg(short, long, value_delimiter = ',')]
-        category: Vec<String>,
-        /// Minimalna velicina kandidata u MB
-        #[arg(long, default_value_t = 0.0)]
-        min_mb: f64,
-        /// Ukljuci i kategorije koje treba pregledati (emulatori, VM-ovi, backup-i, instaleri)
-        #[arg(long)]
-        include_review: bool,
+        #[command(flatten)]
+        opts: clean_cmd::CleanOpts,
     },
 }
 
-fn run_scan(opts: &ScanOpts) -> std::io::Result<Tree> {
-    let root = std::fs::canonicalize(&opts.path)?;
-    if cfg!(target_os = "macos") && root == Path::new("/") && !opts.cross_fs {
-        eprintln!(
-            "napomena: na macOS-u su korisnicki podaci na /System/Volumes/Data (\"/\" je sistemski volumen)"
-        );
-    }
-    let scanner = Scanner::new(&root, opts.cross_fs)?;
-    let start = Instant::now();
-    let done = AtomicBool::new(false);
-    let node = std::thread::scope(|s| {
-        if std::io::stderr().is_terminal() {
-            s.spawn(|| {
-                while !done.load(Ordering::Relaxed) {
-                    eprint!(
-                        "\rskeniram… {} objekata",
-                        scanner.scanned.load(Ordering::Relaxed)
-                    );
-                    std::thread::sleep(Duration::from_millis(150));
-                }
-                eprint!("\r\x1b[K");
-            });
-        }
-        let r = scanner.scan(&root);
-        done.store(true, Ordering::Relaxed);
-        r
-    })?;
-    let errs = scanner.errors.load(Ordering::Relaxed);
-    eprintln!(
-        "skenirano {} objekata za {:.2}s{}",
-        scanner.scanned.load(Ordering::Relaxed),
-        start.elapsed().as_secs_f64(),
-        if errs > 0 {
-            format!(", {errs} nedostupno (pokreni kao root za potpun pregled)")
-        } else {
-            String::new()
-        }
-    );
-    Ok(Tree::from_node(node, root))
-}
-
-fn main() {
-    if let Err(e) = real_main() {
-        eprintln!("greska: {e}");
-        std::process::exit(1);
-    }
-}
-
-fn real_main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     match Cli::parse().cmd {
-        Cmd::Top { scan, depth, top } => {
-            render::print_tree(&run_scan(&scan)?, depth, top);
-        }
+        Cmd::Top { scan, depth, top } => render::print_tree(&run_scan(&scan)?, depth, top),
         Cmd::Map {
             scan,
             out,
             min_angle,
             max_depth,
         } => {
-            std::fs::write(&out, render::html(&run_scan(&scan)?, min_angle, max_depth))?;
-            println!("mapa sacuvana: {}", out.display());
+            let html = render::html(&run_scan(&scan)?, min_angle, max_depth);
+            std::fs::write(&out, html).with_context(|| format!("writing {}", out.display()))?;
+            println!("map saved: {}", out.display());
         }
-        Cmd::Clean {
-            scan,
-            delete,
-            yes,
-            category,
-            min_mb,
-            include_review,
-        } => {
-            let tree = run_scan(&scan)?;
-            let root = tree.root_path();
-            let min = (min_mb * 1_000_000.0) as u64;
-            let cands: Vec<_> = clean::find(&tree)
-                .into_iter()
-                .filter(|c| {
-                    c.size >= min
-                        && (category.is_empty() || category.iter().any(|k| k == c.category))
-                        // eksplicitno trazena kategorija se uvek prikazuje
-                        && (c.safe || include_review || !category.is_empty())
-                })
-                .collect();
-            if cands.is_empty() {
-                println!("nema sta da se cisti.");
-                return Ok(());
-            }
-            report(&cands, root);
-            if !delete {
-                println!("\n(dry-run) dodaj --delete da obrises.");
-                return Ok(());
-            }
-            let total: u64 = cands.iter().map(|c| c.size).sum();
-            if !yes
-                && !confirm(&format!(
-                    "Obrisati {} stavki ({})? upisi 'yes': ",
-                    cands.len(),
-                    human(total)
-                ))?
-            {
-                println!("otkazano.");
-                return Ok(());
-            }
-            let mut freed = 0;
-            for c in &cands {
-                match clean::delete(c) {
-                    Ok(()) => freed += c.size,
-                    Err(e) => eprintln!("ne mogu da obrisem {}: {e}", c.path.display()),
-                }
-            }
-            println!("oslobodjeno {}", human(freed));
+        Cmd::Clean { scan, opts } => {
+            let categories = opts.categories()?;
+            clean_cmd::run(&run_scan(&scan)?, &opts, &categories)?;
         }
     }
     Ok(())
 }
 
-fn report(cands: &[clean::Candidate], root: &Path) {
-    let mut by_cat: BTreeMap<&str, (u64, usize)> = BTreeMap::new();
-    for c in cands {
-        let e = by_cat.entry(c.category).or_default();
-        e.0 += c.size;
-        e.1 += 1;
-    }
-    println!("Po kategorijama:");
-    let mut cats: Vec<_> = by_cat.into_iter().collect();
-    cats.sort_by_key(|c| std::cmp::Reverse(c.1.0));
-    for (cat, (size, n)) in &cats {
-        println!("  {:<14} {:>10}  ({n} stavki)", cat, human(*size));
-    }
-    println!("\nNajveci kandidati:");
-    for c in cands.iter().take(25) {
-        let rel = c.path.strip_prefix(root).unwrap_or(&c.path);
-        println!(
-            "  {:>10}  [{}{}]  {}{}",
-            human(c.size),
-            c.category,
-            if c.safe { "" } else { ", proveri" },
-            rel.display(),
-            if c.is_dir { "/" } else { "" }
+/// Scans with a live counter on stderr when it is a terminal.
+fn run_scan(opts: &ScanOpts) -> Result<Tree> {
+    let root = std::fs::canonicalize(&opts.path)
+        .with_context(|| format!("cannot open {}", opts.path.display()))?;
+    if cfg!(target_os = "macos") && root == Path::new("/") && !opts.cross_fs {
+        eprintln!(
+            "note: on macOS your files are on /System/Volumes/Data (\"/\" is the system volume)"
         );
     }
-    if cands.len() > 25 {
-        println!("  … i jos {}", cands.len() - 25);
-    }
-    let total: u64 = cands.iter().map(|c| c.size).sum();
-    println!("\nUkupno za ciscenje: {}", human(total));
-}
-
-fn confirm(q: &str) -> std::io::Result<bool> {
-    print!("{q}");
-    std::io::stdout().flush()?;
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s)?;
-    Ok(s.trim() == "yes")
+    let scanner = Scanner::new(root.clone(), opts.cross_fs)?;
+    let start = Instant::now();
+    let done = AtomicBool::new(false);
+    let node = std::thread::scope(|s| {
+        if std::io::stderr().is_terminal() {
+            s.spawn(|| {
+                while !done.load(Ordering::Relaxed) {
+                    eprint!("\rscanning… {} items", scanner.scanned());
+                    std::thread::sleep(Duration::from_millis(150));
+                }
+                eprint!("\r\x1b[K");
+            });
+        }
+        let node = scanner.scan();
+        done.store(true, Ordering::Relaxed);
+        node
+    })?;
+    let errors = scanner.errors();
+    let unreadable = if errors > 0 {
+        format!(", {errors} unreadable (run as root to see everything)")
+    } else {
+        String::new()
+    };
+    eprintln!(
+        "scanned {} items in {:.2}s{unreadable}",
+        scanner.scanned(),
+        start.elapsed().as_secs_f64(),
+    );
+    Ok(Tree::from_node(node, root))
 }

@@ -1,8 +1,9 @@
 [package]
 name = "diskbloom-cli"
-description = "diskbloom command line: top, sunburst map, cleaner"
+description = "Diskbloom command line: biggest folders, sunburst map and cleaner"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -12,4 +13,8 @@ path = "src/main.rs"
 
 [dependencies]
 diskbloom-core.workspace = true
+anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+
+[lints]
+workspace = true
