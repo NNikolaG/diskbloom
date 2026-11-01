@@ -38,6 +38,8 @@ jobs:
         with:
           name: Diskbloom-macos
           path: macos/build/Diskbloom.zip
+      - name: Trash path check
+        run: swift macos/ci/trash-test.swift
       - name: Screenshots (smoke test)
         run: |
           APP=macos/build/Diskbloom.app

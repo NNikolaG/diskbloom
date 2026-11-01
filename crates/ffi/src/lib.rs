@@ -78,11 +78,37 @@ pub struct DupGroupInfo {
     pub files: Vec<FileInfo>,
 }
 
+const DATA_VOLUME: &str = "/System/Volumes/Data";
+
+/// Kad se skenira boot disk, skener ide kroz `/System/Volumes/Data/...`. macOS takve
+/// putanje (ispod zasticenog /System) ne pusta u korisnikov Trash ("You do not have
+/// permission to move the files to the trash"), a isti fajl preko `/Users/...` pusta.
+/// Zato aplikaciji vracamo uobicajenu putanju kroz firmlink, ako postoji.
+fn user_path(p: &std::path::Path) -> String {
+    user_path_with(p, DATA_VOLUME, |q| q.exists())
+}
+
+fn user_path_with(
+    p: &std::path::Path,
+    data: &str,
+    exists: impl Fn(&std::path::Path) -> bool,
+) -> String {
+    if let Ok(rest) = p.strip_prefix(data)
+        && !rest.as_os_str().is_empty()
+    {
+        let short = std::path::Path::new("/").join(rest);
+        if exists(&short) {
+            return short.to_string_lossy().into_owned();
+        }
+    }
+    p.to_string_lossy().into_owned()
+}
+
 fn file_info(t: &dc::Tree, id: u32) -> Option<FileInfo> {
     t.get(id).map(|e| FileInfo {
         id,
         name: e.name.clone(),
-        path: t.path(id).to_string_lossy().into_owned(),
+        path: user_path(&t.path(id)),
         size: e.size,
     })
 }
@@ -181,13 +207,9 @@ impl DiskTree {
             .collect()
     }
 
+    /// Putanja za rad sa fajlom (Trash, Finder, Quick Look); vidi `user_path`.
     pub fn path(&self, id: u32) -> String {
-        self.inner
-            .read()
-            .unwrap()
-            .path(id)
-            .to_string_lossy()
-            .into_owned()
+        user_path(&self.inner.read().unwrap().path(id))
     }
 
     /// Nalazi cvor po putanji. Prihvata i putanje sa symlinkovima (/var -> /private/var)
@@ -198,7 +220,7 @@ impl DiskTree {
         t.find(p)
             .or_else(|| std::fs::canonicalize(p).ok().and_then(|c| t.find(&c)))
             .or_else(|| {
-                let data = std::path::Path::new("/System/Volumes/Data");
+                let data = std::path::Path::new(DATA_VOLUME);
                 let rel = p.strip_prefix("/").ok()?;
                 t.find(&data.join(rel))
             })
@@ -236,7 +258,7 @@ impl DiskTree {
             .into_iter()
             .map(|c| CleanCandidate {
                 id: c.id,
-                path: c.path.to_string_lossy().into_owned(),
+                path: user_path(&c.path),
                 size: c.size,
                 category: c.category.to_string(),
                 safe: c.safe,
@@ -390,6 +412,26 @@ mod tests {
         assert!(tree.is_attached(new_x) && !tree.is_attached(x));
         assert!(tree.info(tree.root()).unwrap().size >= before + 300_000);
         assert_eq!(tree.children(new_x).len(), 2);
+    }
+
+    #[test]
+    fn user_path_strips_data_volume_when_firmlinked() {
+        let yes = |_: &std::path::Path| true;
+        let no = |_: &std::path::Path| false;
+        let d = "/System/Volumes/Data";
+        let p = std::path::Path::new("/System/Volumes/Data/Users/n/projects/x/node_modules");
+        assert_eq!(
+            user_path_with(p, d, yes),
+            "/Users/n/projects/x/node_modules"
+        );
+        // nema firmlink-a -> ostaje puna putanja
+        assert_eq!(user_path_with(p, d, no), p.to_string_lossy());
+        // sam koren volumena i druge putanje se ne diraju
+        assert_eq!(user_path_with(std::path::Path::new(d), d, yes), d);
+        assert_eq!(
+            user_path_with(std::path::Path::new("/Volumes/USB/a"), d, yes),
+            "/Volumes/USB/a"
+        );
     }
 
     #[test]
