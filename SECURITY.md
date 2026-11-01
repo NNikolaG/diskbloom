@@ -26,9 +26,12 @@ Diskbloom usually runs with **Full Disk Access**, so it is designed to be boring
   Events to Finder (for "Empty Trash").
 - **No settings, caches or telemetry** are stored by the app.
 
-## Security review (v0.2.0)
+## Security review (v0.3.0)
 
 Scope: Rust core, CLI, UniFFI bridge, SwiftUI app, build script and GitHub workflows.
+
+The fixes below ship in **0.3.0**. The 0.2.0 download was built before them (for example
+without the hardened runtime), so please update.
 
 | # | Finding | Severity | Status |
 |---|---|---|---|
