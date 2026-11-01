@@ -73,7 +73,6 @@ const NAME_RULES: &[NameRule] = &[
     name("build", &["build.gradle", "build.gradle.kts"], "gradle"),
     name("Pods", &["Podfile"], "cocoapods"),
     name(".build", &["Package.swift"], "swift-build"),
-    name("DerivedData", &[], "xcode-derived"),
     // Python virtualenv: bilo koji folder sa pyvenv.cfg unutra
     NameRule {
         name: None,
@@ -595,6 +594,8 @@ mod tests {
         // Electron aplikacija
         w("apps/Some.app/Contents/Resources/app/package.json");
         w("apps/Some.app/Contents/Resources/app/node_modules/e/i.js");
+        // korisnikov folder koji se slucajno zove DerivedData (nije Xcode)
+        w("h/data/DerivedData/results.csv");
         // Rust toolchain u ~/.cargo: target/ pored Cargo.toml u git checkout-u
         w("h/.cargo/git/checkouts/crate/Cargo.toml");
         w("h/.cargo/git/checkouts/crate/target/x");

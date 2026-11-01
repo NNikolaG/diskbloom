@@ -95,16 +95,18 @@ for s in 16 32 128 256 512; do
   sips -z $((s*2)) $((s*2)) Resources/AppIcon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
-# Potpis. Sa stalnim identitetom (besplatan "Apple Development" sertifikat iz Xcode-a
+# Potpis sa hardened runtime-om (--options runtime): blokira ubacivanje biblioteka
+# (DYLD_INSERT_LIBRARIES) i slicno, pa niko ne moze da "pozajmi" Full Disk Access
+# koji je korisnik dao Diskbloom-u. Sa stalnim identitetom (besplatan "Apple Development" sertifikat iz Xcode-a
 # ili Developer ID) macOS pamti Full Disk Access izmedju build-ova. Ad-hoc potpis se
 # menja svakim build-om, pa macOS novu verziju vidi kao drugu aplikaciju.
 IDENTITY="${DISKBLOOM_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep -Eo '"(Developer ID Application|Apple Development)[^"]*"' | head -1 | tr -d '"' || true)}"
 if [[ -n "$IDENTITY" ]]; then
-  codesign --force --sign "$IDENTITY" "$APP" >/dev/null
+  codesign --force --options runtime --entitlements Diskbloom.entitlements --sign "$IDENTITY" "$APP" >/dev/null
   echo "==> potpisano: $IDENTITY"
 else
-  codesign --force --sign - "$APP" >/dev/null
+  codesign --force --options runtime --entitlements Diskbloom.entitlements --sign - "$APP" >/dev/null
   echo "==> ad-hoc potpis (Full Disk Access ce trebati ponovo dati posle svakog build-a)"
 fi
 

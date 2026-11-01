@@ -1,0 +1,52 @@
+name: Benchmark
+
+# Brzina skeniranja na macOS-u: bloom (Diskbloom jezgro) protiv du, dust i gdu.
+# DaisyDisk nema komandnu liniju, pa se ne moze automatski meriti; vidi docs/BENCHMARKS.md.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/bench.yml
+      - crates/core/src/scan.rs
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - run: cargo build --release -p diskbloom-cli
+      - run: brew install hyperfine dust gdu
+      - name: Benchmark
+        run: |
+          T="$HOME"
+          B="$PWD/target/release/bloom"
+          {
+            echo "## Diskbloom scan benchmark"
+            echo
+            echo "Machine: $(sysctl -n machdep.cpu.brand_string), $(sysctl -n hw.ncpu) cores"
+            echo "Target: \`$T\` ($(find "$T" 2>/dev/null | wc -l | tr -d ' ') entries)"
+            echo
+            echo "### Accuracy (allocated size)"
+            echo "- du: $(du -sk "$T" 2>/dev/null | cut -f1) KB"
+            echo "- bloom: $("$B" top "$T" -d 0 2>/dev/null | head -1)"
+            echo
+          } > bench.md
+          CMDS=("du -sk $T" "$B top $T -d 0" "dust -d 0 $T" "gdu-go -n $T")
+          hyperfine -N -i --warmup 1 --runs 5 --export-markdown warm.md "${CMDS[@]}"
+          hyperfine -N -i --runs 3 --prepare 'sudo purge' --export-markdown cold.md "${CMDS[@]}"
+          { echo "### Warm cache"; cat warm.md; echo; echo "### Cold cache (sudo purge before each run)"; cat cold.md; } >> bench.md
+          cat bench.md
+          cat bench.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark
+          path: bench.md

@@ -38,12 +38,22 @@ extension AppModel {
         case androidAVD
         /// Docker disk se ne brise; prazni se kroz `docker system prune`.
         case docker
+        /// ~/.Trash se ne salje u Trash nego prazni (preko Finder-a).
+        case emptyTrash
+    }
+
+    /// Samo pravi UUID simulatora. Ime foldera ide kao argument `simctl delete`, a
+    /// folder koji se zove npr. "all" bi inace obrisao SVE simulatore.
+    nonisolated static func isSimulatorUDID(_ s: String) -> Bool {
+        s.range(of: "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+                options: .regularExpression) != nil
     }
 
     nonisolated static func cleanupMethod(category: String, path: String) -> CleanupMethod {
         if category == "simulators" { return .simulator(udid: URL(fileURLWithPath: path).lastPathComponent) }
         if category == "android-emulators" { return .androidAVD }
         if path.contains("/com.docker.docker/") { return .docker }
+        if category == "trash" { return .emptyTrash }
         return .trash
     }
 
@@ -62,6 +72,7 @@ extension AppModel {
                 let ini = URL(fileURLWithPath: c.path).deletingPathExtension().appendingPathExtension("ini").path
                 if let iniID = tree.find(path: ini) { trash.append((id: iniID, path: ini)) }
             case .docker: continue
+            case .emptyTrash: emptyTrash()
             }
         }
         if !sims.isEmpty { await deleteSimulators(sims) }
@@ -70,6 +81,8 @@ extension AppModel {
 
     private func deleteSimulators(_ sims: [CleanCandidate]) async {
         guard let tree else { return }
+        let sims = sims.filter { Self.isSimulatorUDID(URL(fileURLWithPath: $0.path).lastPathComponent) }
+        guard !sims.isEmpty else { return }
         let udids = sims.map { URL(fileURLWithPath: $0.path).lastPathComponent }
         let r = await Shell.run("/usr/bin/xcrun", ["simctl", "delete"] + udids)
         if r.ok {
@@ -117,11 +130,13 @@ extension AppModel {
         let date: Date?
         var id: String { name }
         var isTimeMachine: Bool { name.hasPrefix("com.apple.TimeMachine.") }
-        /// "2026-10-31-101500", argument za tmutil deletelocalsnapshots
+        /// "2026-10-31-101500", argument za tmutil deletelocalsnapshots. Ide u komandu
+        /// koja se izvrsava sa administratorskim pravima, pa propustamo samo tacan format.
         var stamp: String? {
             guard isTimeMachine else { return nil }
-            return name.replacingOccurrences(of: "com.apple.TimeMachine.", with: "")
+            let s = name.replacingOccurrences(of: "com.apple.TimeMachine.", with: "")
                 .replacingOccurrences(of: ".local", with: "")
+            return s.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$", options: .regularExpression) != nil ? s : nil
         }
     }
 
