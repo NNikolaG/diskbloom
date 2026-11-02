@@ -176,7 +176,8 @@ struct DuplicatesView: View {
                     try APFSClones.replaceWithClone(original: original.path, duplicate: copy.path)
                     return nil
                 } catch {
-                    return "\(copy.path): \(Self.describe(error))"
+                    let reason = (error as? APFSClones.ReplaceError) ?? .system(error.localizedDescription)
+                    return "\(copy.path): \(Self.describe(reason))"
                 }
             }
         }.value
