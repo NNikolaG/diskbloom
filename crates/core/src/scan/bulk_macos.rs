@@ -18,6 +18,9 @@ use std::os::fd::{AsRawFd, BorrowedFd};
 /// Not in the `libc` crate. Packed right after `ATTR_CMN_RETURNED_ATTRS` (see
 /// `getattrlistbulk(2)`).
 const ATTR_CMN_ERROR: u32 = 0x2000_0000;
+/// `st_flags` bit of a firmlink (`<sys/stat.h>`), such as `/usr/share/snmp` on the
+/// system volume.
+const SF_FIRMLINK: u32 = 0x0080_0000;
 
 const COMMON: u32 = libc::ATTR_CMN_RETURNED_ATTRS
     | ATTR_CMN_ERROR
@@ -25,6 +28,7 @@ const COMMON: u32 = libc::ATTR_CMN_RETURNED_ATTRS
     | libc::ATTR_CMN_DEVID
     | libc::ATTR_CMN_OBJTYPE
     | libc::ATTR_CMN_MODTIME
+    | libc::ATTR_CMN_FLAGS
     | libc::ATTR_CMN_FILEID;
 const DIR: u32 = libc::ATTR_DIR_MOUNTSTATUS | libc::ATTR_DIR_ALLOCSIZE;
 const FILE: u32 = libc::ATTR_FILE_LINKCOUNT | libc::ATTR_FILE_ALLOCSIZE;
@@ -209,6 +213,7 @@ fn parse(entry: &[u8]) -> Result<Option<Entry>, Malformed> {
             r.i64()?;
             Ok(sec)
         })?,
+        flags: r.opt(common, libc::ATTR_CMN_FLAGS, Reader::u32)?,
         ino: r.opt(common, libc::ATTR_CMN_FILEID, Reader::u64)?,
         mount_status: r.opt(dir, libc::ATTR_DIR_MOUNTSTATUS, Reader::u32)?,
         dir_alloc: r.opt(dir, libc::ATTR_DIR_ALLOCSIZE, Reader::i64)?,
@@ -225,6 +230,7 @@ struct Raw {
     dev: Option<i32>,
     vtype: Option<u32>,
     mtime: Option<i64>,
+    flags: Option<u32>,
     ino: Option<u64>,
     mount_status: Option<u32>,
     dir_alloc: Option<i64>,
@@ -242,7 +248,9 @@ impl Raw {
         let (alloc, nlink) = if kind == FileType::Directory {
             // A mount point reports the covered folder, not the mounted volume's root
             // that `fstatat` sees, so it is stat-ed to keep the volume check right.
-            if self.mount_status? != 0 {
+            // A firmlink reports itself, while `fstatat` resolves it to the folder it
+            // points to (another mtime), so it is stat-ed too.
+            if self.mount_status? != 0 || self.flags? & SF_FIRMLINK != 0 {
                 return None;
             }
             (self.dir_alloc?, 1)
@@ -298,6 +306,7 @@ mod tests {
         e.extend_from_slice(&1u32.to_ne_bytes()); // VREG
         e.extend_from_slice(&1_700_000_000i64.to_ne_bytes());
         e.extend_from_slice(&5i64.to_ne_bytes()); // nanoseconds
+        e.extend_from_slice(&0u32.to_ne_bytes()); // flags
         e.extend_from_slice(&42u64.to_ne_bytes()); // file id
         if file & libc::ATTR_FILE_LINKCOUNT != 0 {
             e.extend_from_slice(&2u32.to_ne_bytes());

@@ -40,6 +40,13 @@ jobs:
             echo "- bloom: $("$B" top "$T" -d 0 2>/dev/null | head -1)"
             echo "- bloom, portable readdir + fstatat: $(DISKBLOOM_SCAN_BULK=0 "$B" top "$T" -d 0 2>/dev/null | head -1)"
             echo
+            echo "### getattrlistbulk vs portable on \`$T\` (scanned portable, bulk, portable)"
+            echo '```'
+            DISKBLOOM_EQUIV_ROOT="$T" cargo test -q --release -p diskbloom-core --lib \
+              bulk_matches_portable_on_a_live_folder -- --ignored --nocapture 2>&1 \
+              | grep -v '^running\|^$' || true
+            echo '```'
+            echo
           } > bench.md
           CMDS=("du -sk $T" "$B top $T -d 0" "dust -d 0 $T" "gdu-go -n $T")
           # Baseline: one scan thread per core, as before the dedicated scan pool

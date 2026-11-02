@@ -22,6 +22,9 @@ enum Sizes {
     Exact,
     /// Only the root: real trees can have hard links in different folders.
     RootOnly,
+    /// Like `Exact`, but the root and mounted volumes (`vol-*`) are compared without
+    /// size and mtime: the system may write to a volume's root right after mounting.
+    Mounts,
 }
 
 fn by_name(n: &Node) -> Vec<&Node> {
@@ -33,11 +36,12 @@ fn by_name(n: &Node) -> Vec<&Node> {
 /// Collects every difference between `a` and `b`, children matched by name.
 fn diff(a: &Node, b: &Node, path: &str, sizes: Sizes, root: bool, out: &mut Vec<String>) {
     let linked = !a.is_dir && a.name.starts_with("linked-");
-    let check_size = root || matches!(sizes, Sizes::Exact) && !linked;
+    let loose = matches!(sizes, Sizes::Mounts) && (root || a.name.starts_with("vol-"));
+    let check_size = !loose && (root || !matches!(sizes, Sizes::RootOnly) && !linked);
     if a.name != b.name
         || a.is_dir != b.is_dir
         || a.files != b.files
-        || a.newest != b.newest
+        || (!loose && a.newest != b.newest)
         || (check_size && a.size != b.size)
     {
         out.push(format!(
@@ -74,6 +78,50 @@ fn assert_equivalent(root: &Path, cross_fs: bool, sizes: Sizes) -> Node {
         root.display()
     );
     bulk
+}
+
+/// For the benchmark: compares both paths on a live folder (`DISKBLOOM_EQUIV_ROOT`,
+/// default `$HOME`), scanning portable, bulk, portable. Differences between the two
+/// portable scans are changes made meanwhile by other processes, not the scanner.
+#[test]
+#[ignore = "diagnostic for a live folder, run by the benchmark workflow"]
+fn bulk_matches_portable_on_a_live_folder() {
+    let root = std::env::var_os("DISKBLOOM_EQUIV_ROOT")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+        .unwrap();
+    let (first, first_errors) = scan(&root, false, false);
+    let (bulk, bulk_errors) = scan(&root, false, true);
+    let (second, second_errors) = scan(&root, false, false);
+    let report = |label: &str, a: &Node, b: &Node| {
+        let mut out = Vec::new();
+        diff(a, b, "", Sizes::RootOnly, true, &mut out);
+        println!("{label}: {} differences", out.len());
+        for line in out.iter().take(15) {
+            println!("  {line}");
+        }
+        out
+    };
+    println!(
+        "files: portable {} / bulk {} / portable {}; errors {first_errors} / {bulk_errors} / {second_errors}",
+        first.files, bulk.files, second.files
+    );
+    let churn = report("portable vs portable (other processes)", &first, &second);
+    let before = report("portable vs bulk", &first, &bulk);
+    let after = report("bulk vs portable", &bulk, &second);
+    // A difference that is not churn shows up against both portable scans.
+    let path = |l: &String| l.split(": ").next().unwrap_or_default().to_owned();
+    let churned: HashSet<String> = churn.iter().map(path).collect();
+    let after: HashSet<String> = after.iter().map(path).collect();
+    let real: Vec<String> = before
+        .iter()
+        .map(path)
+        .filter(|p| !churned.contains(p) && after.contains(p))
+        .collect();
+    assert!(
+        real.is_empty(),
+        "differences not explained by churn: {real:?}"
+    );
 }
 
 /// Files, nested folders, hard links, symlinks, empty and sparse files, compressed files,
@@ -196,11 +244,101 @@ fn bulk_matches_portable_on_system_folders() {
     }
 }
 
+fn run(cmd: &str, args: &[&OsStr]) {
+    let status = Command::new(cmd).args(args).status().unwrap();
+    assert!(status.success(), "{cmd} {args:?}");
+}
+
+/// A disk image mounted for a test; detached on drop.
+struct Volume(PathBuf);
+
+impl Volume {
+    fn mount(images: &Path, at: &Path, fs_type: &str) -> Self {
+        let image = images.join(format!("{}.dmg", at.file_name().unwrap().display()));
+        let s = OsStr::new;
+        run(
+            "hdiutil",
+            &[
+                s("create"),
+                s("-quiet"),
+                s("-size"),
+                s("20m"),
+                s("-fs"),
+                s(fs_type),
+                s("-volname"),
+                s("T"),
+                image.as_os_str(),
+            ],
+        );
+        fs::create_dir(at).unwrap();
+        run(
+            "hdiutil",
+            &[
+                s("attach"),
+                s("-quiet"),
+                s("-nobrowse"),
+                s("-mountpoint"),
+                at.as_os_str(),
+                image.as_os_str(),
+            ],
+        );
+        Self(at.to_path_buf())
+    }
+}
+
+impl Drop for Volume {
+    fn drop(&mut self) {
+        let _ = Command::new("hdiutil")
+            .args([
+                OsStr::new("detach"),
+                OsStr::new("-force"),
+                self.0.as_os_str(),
+            ])
+            .status();
+    }
+}
+
 #[test]
-fn bulk_does_not_enter_other_volumes() {
-    // Every folder here is the mount point of another APFS volume.
-    let root = Path::new("/System/Volumes");
-    let node = assert_equivalent(root, false, Sizes::Exact);
-    let data = node.children.iter().find(|c| c.name == "Data").unwrap();
-    assert!(data.children.is_empty(), "the Data volume is not entered");
+fn bulk_matches_portable_at_mount_points_and_on_other_file_systems() {
+    let images = tempfile::tempdir().unwrap();
+    let d = tempfile::tempdir().unwrap();
+    fs::write(d.path().join("file"), vec![1u8; 20_000]).unwrap();
+    let volumes = [
+        ("vol-apfs", "APFS"),
+        ("vol-hfs", "HFS+"),
+        ("vol-fat", "MS-DOS"),
+    ]
+    .map(|(name, fs_type)| Volume::mount(images.path(), &d.path().join(name), fs_type));
+    for vol in &volumes {
+        let content = vol.0.join("content");
+        fs::create_dir_all(content.join("sub/deeper")).unwrap();
+        fs::write(content.join("a"), vec![2u8; 30_000]).unwrap();
+        fs::write(content.join("sub/b"), vec![3u8; 70_000]).unwrap();
+        fs::write(content.join("sub/deeper/c"), b"c").unwrap();
+        fs::write(content.join("empty"), b"").unwrap();
+        if !vol.0.ends_with("vol-fat") {
+            fs::hard_link(content.join("a"), content.join("linked-a")).unwrap();
+            fs::hard_link(content.join("a"), content.join("linked-b")).unwrap();
+            std::os::unix::fs::symlink("sub", content.join("link")).unwrap();
+            fs::write(content.join("ünïcödé"), b"u").unwrap();
+        }
+    }
+
+    // Other volumes are not entered.
+    let node = assert_equivalent(d.path(), false, Sizes::Mounts);
+    for vol in &volumes {
+        let name = vol.0.file_name().unwrap().to_string_lossy();
+        let child = node.children.iter().find(|c| c.name == name).unwrap();
+        assert!(
+            child.is_dir && child.children.is_empty(),
+            "{name} not entered"
+        );
+    }
+    assert_eq!(node.files, 1);
+
+    // Each file system read the same way (by bulk where it supports it).
+    for vol in &volumes {
+        let node = assert_equivalent(&vol.0.join("content"), false, Sizes::Exact);
+        assert!(node.files >= 4, "{}", vol.0.display());
+    }
 }
