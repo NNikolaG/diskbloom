@@ -5,10 +5,11 @@ name: Benchmark
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, "perf/**"]
     paths:
       - .github/workflows/bench.yml
       - crates/core/src/scan.rs
+      - crates/core/src/scan/**
 
 permissions:
   contents: read
@@ -37,11 +38,14 @@ jobs:
             echo "### Accuracy (allocated size)"
             echo "- du: $(du -sk "$T" 2>/dev/null | cut -f1) KB"
             echo "- bloom: $("$B" top "$T" -d 0 2>/dev/null | head -1)"
+            echo "- bloom, portable readdir + fstatat: $(DISKBLOOM_SCAN_BULK=0 "$B" top "$T" -d 0 2>/dev/null | head -1)"
             echo
           } > bench.md
           CMDS=("du -sk $T" "$B top $T -d 0" "dust -d 0 $T" "gdu-go -n $T")
           # Baseline: one scan thread per core, as before the dedicated scan pool
           CMDS+=("env DISKBLOOM_SCAN_THREADS=$(sysctl -n hw.ncpu) $B top $T -d 0")
+          # Portable readdir + fstatat path instead of getattrlistbulk
+          CMDS+=("env DISKBLOOM_SCAN_BULK=0 $B top $T -d 0")
           hyperfine -N -i --warmup 1 --runs 8 --export-markdown warm.md "${CMDS[@]}"
           hyperfine -N -i --runs 5 --prepare 'sudo purge' --export-markdown cold.md "${CMDS[@]}"
           { echo "### Warm cache"; cat warm.md; echo; echo "### Cold cache (sudo purge before each run)"; cat cold.md; } >> bench.md
