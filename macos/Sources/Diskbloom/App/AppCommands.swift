@@ -28,6 +28,8 @@ struct AppCommands: Commands {
                 .keyboardShortcut("2", modifiers: .command)
             Button("Duplicates") { model.resultMode = .duplicates }
                 .keyboardShortcut("3", modifiers: .command)
+            Button("File Types") { model.resultMode = .types }
+                .keyboardShortcut("4", modifiers: .command)
             Divider()
         }
     }

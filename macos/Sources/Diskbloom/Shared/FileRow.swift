@@ -3,11 +3,14 @@ import DiskbloomFFI
 import DiskbloomKit
 import SwiftUI
 
-/// One file in the largest-files and duplicates lists.
+/// One file in the largest-files, duplicates, file types and search lists.
 struct FileRow: View {
     @EnvironmentObject private var model: AppModel
     let file: FileInfo
     var detail: String?
+    /// A click runs this (e.g. a folder opens on the map); without it a double click
+    /// opens Quick Look.
+    var onOpen: (() -> Void)?
     @State private var hover = false
 
     var body: some View {
@@ -56,8 +59,11 @@ struct FileRow: View {
             hover = inside
             if inside { model.lastHoveredID = file.id }
         }
-        .onTapGesture(count: 2) { model.quickLook(file.id) }
+        .onTapGesture(count: onOpen == nil ? 2 : 1) {
+            if let onOpen { onOpen() } else { model.quickLook(file.id) }
+        }
         .contextMenu {
+            if let onOpen { Button("Show on Map", action: onOpen) }
             Button("Quick Look") { model.quickLook(file.id) }
             Button("Show in Finder") { model.revealInFinder(file.id) }
             Button(collected ? LocalizedStringKey("Remove from Trash list") : "Add to Trash list") {

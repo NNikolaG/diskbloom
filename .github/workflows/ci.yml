@@ -117,6 +117,17 @@ jobs:
           pgrep -x Diskbloom
           screencapture -x $OUT/6-duplicates.png
           pkill -x Diskbloom || true; sleep 2
+          # 5b) file types, and a search by name
+          open --env DISKBLOOM_SCAN="$HOME" --env DISKBLOOM_MODE=types "$APP"
+          sleep 50
+          pgrep -x Diskbloom
+          screencapture -x $OUT/6b-types.png
+          pkill -x Diskbloom || true; sleep 2
+          open --env DISKBLOOM_SCAN="$HOME" --env DISKBLOOM_SEARCH=video "$APP"
+          sleep 50
+          pgrep -x Diskbloom
+          screencapture -x $OUT/6c-search.png
+          pkill -x Diskbloom || true; sleep 2
           # 6) Serbian
           open --env DISKBLOOM_OVERVIEW=1 "$APP" --args -AppleLanguages "(sr)"
           sleep 12

@@ -174,3 +174,95 @@ pub struct DupGroupInfo {
     /// The copies.
     pub files: Vec<FileInfo>,
 }
+
+/// A broad kind of file; see [`core::Kind`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FileKind {
+    /// Movies and screen recordings.
+    Video,
+    /// Photos, pictures and design files.
+    Images,
+    /// Music and recordings.
+    Audio,
+    /// Archives, installers and disk images.
+    Archives,
+    /// Office documents, PDFs and text.
+    Documents,
+    /// Source code and build output.
+    Code,
+    /// `.app` bundles.
+    Apps,
+    /// Libraries, frameworks, settings and databases.
+    System,
+    /// Everything else.
+    Other,
+}
+
+impl From<core::Kind> for FileKind {
+    fn from(k: core::Kind) -> Self {
+        match k {
+            core::Kind::Video => Self::Video,
+            core::Kind::Images => Self::Images,
+            core::Kind::Audio => Self::Audio,
+            core::Kind::Archives => Self::Archives,
+            core::Kind::Documents => Self::Documents,
+            core::Kind::Code => Self::Code,
+            core::Kind::Apps => Self::Apps,
+            core::Kind::System => Self::System,
+            core::Kind::Other => Self::Other,
+        }
+    }
+}
+
+impl From<FileKind> for core::Kind {
+    fn from(k: FileKind) -> Self {
+        match k {
+            FileKind::Video => Self::Video,
+            FileKind::Images => Self::Images,
+            FileKind::Audio => Self::Audio,
+            FileKind::Archives => Self::Archives,
+            FileKind::Documents => Self::Documents,
+            FileKind::Code => Self::Code,
+            FileKind::Apps => Self::Apps,
+            FileKind::System => Self::System,
+            FileKind::Other => Self::Other,
+        }
+    }
+}
+
+/// Total size and number of items of one kind.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct KindInfo {
+    /// The kind.
+    pub kind: FileKind,
+    /// Allocated size in bytes.
+    pub size: u64,
+    /// Number of items (an `.app` bundle counts as one).
+    pub count: u64,
+}
+
+impl From<core::KindTotal> for KindInfo {
+    fn from(t: core::KindTotal) -> Self {
+        Self {
+            kind: t.kind.into(),
+            size: t.size,
+            count: t.count,
+        }
+    }
+}
+
+/// A file or folder found by name.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SearchHit {
+    /// The entry, as in the largest-files list.
+    pub file: FileInfo,
+    /// Whether it is a folder (opens on the map).
+    pub is_dir: bool,
+}
+
+impl SearchHit {
+    pub(crate) fn new(tree: &Tree, id: NodeId) -> Option<Self> {
+        let is_dir = tree.get(id)?.is_dir;
+        FileInfo::new(tree, id).map(|file| Self { file, is_dir })
+    }
+}

@@ -27,7 +27,7 @@
 "Largest files" = "Najveći fajlovi";
 "Largest Files" = "Najveći fajlovi";
 "Duplicates" = "Duplikati";
-"Map, largest files or duplicates" = "Mapa, najveći fajlovi ili duplikati";
+"Map, largest files, duplicates or file types" = "Mapa, najveći fajlovi, duplikati ili tipovi fajlova";
 "Disk overview" = "Pregled diska";
 "Back to the overview and actions for this disk" = "Nazad na pregled i akcije za ovaj disk";
 "Smart Clean…" = "Smart Clean…";
@@ -241,3 +241,30 @@
 "on a different disk" = "na drugom disku";
 "has other hard links" = "ima druge hard linkove";
 "contents changed since the search" = "sadržaj se promenio od pretrage";
+/* Tipovi fajlova */
+"Types" = "Tipovi";
+"File Types" = "Tipovi fajlova";
+"File types" = "Tipovi fajlova";
+"Video" = "Video";
+"Images" = "Slike";
+"Audio" = "Audio";
+"Archives & disk images" = "Arhive i slike diskova";
+"Documents" = "Dokumenti";
+"Code & projects" = "Kod i projekti";
+"Apps" = "Aplikacije";
+"System & libraries" = "Sistem i biblioteke";
+"Other" = "Ostalo";
+"This scan has no files." = "Ovo skeniranje nema fajlova.";
+"No files of this kind." = "Nema fajlova ove vrste.";
+"Largest of %@ items · %@" = "Najveće od %@ stavki · %@";
+
+/* Pretraga */
+"Search files and folders" = "Pretraži fajlove i foldere";
+"Search results" = "Rezultati pretrage";
+"The %@ largest matches" = "%@ najvećih poklapanja";
+"%@ matches · folders open on the map" = "%@ poklapanja · folderi se otvaraju na mapi";
+"Searching…" = "Pretražujem…";
+"No results" = "Nema rezultata";
+"Nothing in this scan has that name." = "Ništa u ovom skeniranju nema to ime.";
+"folder" = "folder";
+"Show on Map" = "Prikaži na mapi";

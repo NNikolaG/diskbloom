@@ -7,9 +7,11 @@
 
 pub mod clean;
 pub mod dupes;
+pub mod kinds;
 pub mod scan;
 pub mod tree;
 pub mod volume;
 
+pub use kinds::{Kind, KindTotal};
 pub use scan::{Node, Scanner, human};
 pub use tree::{Change, Entry, NodeId, ScanInfo, Segment, Tree};

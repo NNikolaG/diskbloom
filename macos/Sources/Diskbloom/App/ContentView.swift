@@ -51,9 +51,10 @@ struct ContentView: View {
                     Label("Map", systemImage: "chart.pie").tag(ResultMode.map)
                     Label("Largest files", systemImage: "list.number").tag(ResultMode.largest)
                     Label("Duplicates", systemImage: "doc.on.doc").tag(ResultMode.duplicates)
+                    Label("Types", systemImage: "chart.bar").tag(ResultMode.types)
                 }
                 .pickerStyle(.segmented)
-                .help("Map, largest files or duplicates")
+                .help("Map, largest files, duplicates or file types")
                 Button { model.showOverview() } label: { Label("Disk overview", systemImage: "square.grid.2x2") }
                     .help("Back to the overview and actions for this disk")
                 Button { model.zoomOut() } label: { Label("Back", systemImage: "chevron.left") }
