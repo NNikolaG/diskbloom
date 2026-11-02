@@ -36,7 +36,29 @@ pub struct Node {
     pub children: Vec<Node>,
 }
 
+/// Levels kept per finished top-level entry for previews.
+const PREVIEW_DEPTH: u32 = 2;
+
 impl Node {
+    /// A copy with at most `levels` levels below this node; sizes stay the full totals.
+    fn trimmed(&self, levels: u32) -> Node {
+        Node {
+            name: self.name.clone(),
+            size: self.size,
+            files: self.files,
+            is_dir: self.is_dir,
+            newest: self.newest,
+            children: if levels == 0 {
+                Vec::new()
+            } else {
+                self.children
+                    .iter()
+                    .map(|c| c.trimmed(levels - 1))
+                    .collect()
+            },
+        }
+    }
+
     fn file(name: String, size: u64, mtime: i64) -> Self {
         Self {
             name,
@@ -80,6 +102,8 @@ pub struct Scanner {
     root_dev: u64,
     cross_fs: bool,
     seen_inodes: Mutex<HashSet<(u64, u64)>>,
+    /// Finished top-level folders and files, trimmed for previews (see `Scanner::partial`).
+    finished: Mutex<Vec<Node>>,
     errors: AtomicU64,
     scanned: AtomicU64,
     cancelled: AtomicBool,
@@ -169,6 +193,7 @@ impl Scanner {
             root_dev: m.dev(),
             cross_fs,
             seen_inodes: Mutex::new(HashSet::new()),
+            finished: Mutex::new(Vec::new()),
             errors: AtomicU64::new(0),
             scanned: AtomicU64::new(0),
             cancelled: AtomicBool::new(false),
@@ -210,7 +235,7 @@ impl Scanner {
         let name = self.root.to_string_lossy().into_owned();
         self.scanned.fetch_add(1, Ordering::Relaxed);
         if info.kind == FileType::Directory {
-            let visit = || self.visit_dir(&self.root, name, info);
+            let visit = || self.visit_dir(&self.root, name, info, 0);
             Ok(match scan_pool() {
                 Some(pool) => pool.install(visit),
                 None => visit(),
@@ -220,7 +245,7 @@ impl Scanner {
         }
     }
 
-    fn visit_dir(&self, path: &Path, name: String, info: Info) -> Node {
+    fn visit_dir(&self, path: &Path, name: String, info: Info, depth: u32) -> Node {
         let other_volume = !self.cross_fs && info.dev != self.root_dev;
         if self.is_cancelled() || other_volume {
             return Node::unread_dir(name, info.size, info.mtime);
@@ -237,9 +262,17 @@ impl Scanner {
                 let child_name = String::from_utf8_lossy(child.as_bytes()).into_owned();
                 if child_info.kind == FileType::Directory {
                     let child_path = path.join(OsStr::from_bytes(child.as_bytes()));
-                    self.visit_dir(&child_path, child_name, child_info)
+                    self.visit_dir(&child_path, child_name, child_info, depth + 1)
                 } else {
                     Node::file(child_name, self.counted_size(&child_info), child_info.mtime)
+                }
+            })
+            .inspect(|child| {
+                if depth == 0 {
+                    self.finished
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .push(child.trimmed(PREVIEW_DEPTH));
                 }
             })
             .collect();
@@ -282,6 +315,17 @@ impl Scanner {
                 .filter_map(stat)
                 .collect()
         })
+    }
+
+    /// What is known so far: the root with every top-level entry whose scan has finished,
+    /// each trimmed to a few levels. For drawing a preview while the scan runs.
+    pub fn partial(&self) -> Node {
+        let children = self
+            .finished
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        Node::dir(self.root.to_string_lossy().into_owned(), 0, 0, children)
     }
 
     /// Hard links share their blocks, so only the first link seen is counted.
@@ -344,6 +388,28 @@ mod tests {
         assert!(sizes.windows(2).all(|w| w[0] >= w[1]), "{sizes:?}");
         assert_eq!(sizes.iter().filter(|&&s| s == 0).count(), 1);
         assert_eq!(node.files, 3);
+    }
+
+    #[test]
+    fn partial_shows_finished_top_level_entries() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        fs::create_dir_all(r.join("a/b/c/d")).unwrap();
+        fs::write(r.join("a/b/c/d/deep"), vec![1u8; 50_000]).unwrap();
+        fs::write(r.join("top"), vec![1u8; 10_000]).unwrap();
+        let scanner = Scanner::new(r, false).unwrap();
+        assert!(scanner.partial().children.is_empty());
+        let full = scanner.scan().unwrap();
+        let partial = scanner.partial();
+        assert_eq!(partial.children.len(), 2);
+        assert_eq!(
+            partial.size,
+            full.children.iter().map(|c| c.size).sum::<u64>()
+        );
+        let a = partial.children.iter().find(|c| c.name == "a").unwrap();
+        let c = &a.children[0].children[0];
+        assert_eq!(c.children.len(), 0, "trimmed two levels below a");
+        assert!(c.size >= 50_000, "sizes keep the full totals");
     }
 
     #[test]

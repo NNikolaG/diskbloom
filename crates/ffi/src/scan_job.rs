@@ -1,4 +1,4 @@
-use crate::{BloomError, DiskTree};
+use crate::{BloomError, DiskTree, SegmentInfo};
 use diskbloom_core::{ScanInfo, Scanner, Tree};
 use std::sync::Arc;
 
@@ -34,6 +34,16 @@ impl ScanJob {
         }
         let tree = Tree::from_node(node, self.scanner.root().to_path_buf());
         Ok(Arc::new(DiskTree::new(tree, ScanInfo::default())))
+    }
+
+    /// Sunburst of what is known so far (finished top-level folders), for drawing while
+    /// the scan runs. Cheap: previews keep only a few levels per folder.
+    pub fn preview(&self, rings: u32, min_fraction: f64) -> Vec<SegmentInfo> {
+        let tree = Tree::from_node(self.scanner.partial(), self.scanner.root().to_path_buf());
+        tree.layout(tree.root(), rings, min_fraction)
+            .iter()
+            .map(|s| SegmentInfo::new(&tree, s))
+            .collect()
     }
 
     /// Entries visited so far.

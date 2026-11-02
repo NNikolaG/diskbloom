@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     /// Used on the volume but not seen by the scan.
     @Published private(set) var hiddenSpace: UInt64 = 0
     @Published var refreshing = false
+    /// Sunburst of the folders finished so far, while a scan runs.
+    @Published private(set) var scanPreview: [SegmentInfo] = []
     /// Bringing a saved scan up to date with what changed on disk since.
     @Published var catchingUp = false
     /// Biggest changes since the previous scan of this place, and when that was.
@@ -124,11 +126,21 @@ final class AppModel: ObservableObject {
         phase = .scanning(path: path, scanned: 0)
 
         // Progress: poll the Rust counter while the scan runs in the background.
+        scanPreview = []
         Task {
+            var tick = 0
             while self.job === job, case .scanning = phase {
                 phase = .scanning(path: path, scanned: job.scanned())
+                if tick % 5 == 0 {
+                    let preview = await Task.detached(priority: .utility) {
+                        job.preview(rings: 3, minFraction: 0.005)
+                    }.value
+                    if self.job === job { scanPreview = preview }
+                }
+                tick += 1
                 try? await Task.sleep(for: .milliseconds(120))
             }
+            scanPreview = []
         }
         Task {
             let result = await Task.detached(priority: .userInitiated) { Result { try job.run() } }.value

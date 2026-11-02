@@ -1,7 +1,7 @@
 import DiskbloomKit
 import SwiftUI
 
-/// Progress while a scan runs.
+/// Progress while a scan runs: the map fills in as top-level folders finish.
 struct ScanningView: View {
     @EnvironmentObject private var model: AppModel
     let path: String
@@ -9,7 +9,8 @@ struct ScanningView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            ProgressView().controlSize(.large)
+            ScanPreview(segments: model.scanPreview)
+                .frame(width: 300, height: 300)
             Text("Scanning \(path)").font(.headline)
             Text("\(Format.count(scanned)) items")
                 .font(.title3.monospacedDigit())
