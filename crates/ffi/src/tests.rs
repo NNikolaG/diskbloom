@@ -105,3 +105,36 @@ fn save_load_and_growth() {
     assert!(growth[0].path.ends_with("cache/b"));
     assert!(growth[0].new_size >= 400_000 && growth[0].old_size == 0);
 }
+
+#[test]
+fn file_kinds_and_search() {
+    let d = tempfile::tempdir().unwrap();
+    let r = d.path();
+    std::fs::create_dir_all(r.join("Tools.app/Contents/MacOS")).unwrap();
+    std::fs::write(r.join("Tools.app/Contents/MacOS/tools"), vec![1u8; 200_000]).unwrap();
+    std::fs::create_dir_all(r.join("Movies")).unwrap();
+    std::fs::write(r.join("Movies/Trip.MOV"), vec![1u8; 300_000]).unwrap();
+    std::fs::write(r.join("trip-notes.txt"), vec![1u8; 10_000]).unwrap();
+    let tree = ScanJob::new(r.to_string_lossy().into_owned())
+        .unwrap()
+        .run()
+        .unwrap();
+
+    let kinds = tree.file_kinds();
+    let apps = kinds.iter().find(|k| k.kind == FileKind::Apps).unwrap();
+    assert_eq!(apps.count, 1);
+    assert!(apps.size >= 200_000);
+    let videos = tree.largest_of_kind(FileKind::Video, 10);
+    assert_eq!(videos.len(), 1);
+    assert_eq!(videos[0].name, "Trip.MOV");
+
+    let hits = tree.search("TRIP".into(), 500);
+    let names: Vec<_> = hits.iter().map(|h| h.file.name.as_str()).collect();
+    assert_eq!(names, vec!["Trip.MOV", "trip-notes.txt"]);
+    let movies = tree.search("movies".into(), 500);
+    assert!(movies[0].is_dir);
+    assert_eq!(
+        tree.find(movies[0].file.path.clone()),
+        Some(movies[0].file.id)
+    );
+}

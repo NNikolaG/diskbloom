@@ -7,6 +7,7 @@
 
 mod growth;
 mod layout;
+mod search;
 mod store;
 
 pub use growth::Change;

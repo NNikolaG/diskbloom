@@ -1,5 +1,6 @@
 use crate::paths::user_path;
 use crate::{BloomError, CleanCandidate, FileInfo, GrowthInfo, NodeInfo, SegmentInfo};
+use crate::{FileKind, KindInfo, SearchHit};
 use diskbloom_core::{NodeId, ScanInfo, Scanner, Tree, clean, volume};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -204,6 +205,35 @@ impl DiskTree {
         t.largest_files(limit as usize, min_size)
             .into_iter()
             .filter_map(|id| FileInfo::new(&t, id))
+            .collect()
+    }
+
+    /// Size and number of items per file kind, for every kind (also empty ones).
+    pub fn file_kinds(&self) -> Vec<KindInfo> {
+        self.read()
+            .kind_totals()
+            .into_iter()
+            .map(KindInfo::from)
+            .collect()
+    }
+
+    /// The `limit` largest items of `kind`, largest first (an `.app` bundle as a whole).
+    pub fn largest_of_kind(&self, kind: FileKind, limit: u32) -> Vec<FileInfo> {
+        let t = self.read();
+        t.largest_of_kind(kind.into(), limit as usize)
+            .into_iter()
+            .filter_map(|id| FileInfo::new(&t, id))
+            .collect()
+    }
+
+    /// Files and folders whose name contains `query` (ignoring case and diacritics),
+    /// largest first, at most `limit`. Walks the whole tree: call off the main thread.
+    #[allow(clippy::needless_pass_by_value)] // UniFFI passes owned strings
+    pub fn search(&self, query: String, limit: u32) -> Vec<SearchHit> {
+        let t = self.read();
+        t.search(&query, limit as usize)
+            .into_iter()
+            .filter_map(|id| SearchHit::new(&t, id))
             .collect()
     }
 }
