@@ -54,7 +54,7 @@ without the hardened runtime), so please update.
 | 8 | Release builds are not notarized, so users must bypass Gatekeeper once. | Low | Open: needs an Apple Developer account. Each release publishes `SHA256SUMS.txt`. |
 | 9 | `basic-toml` (used only by the UniFFI code generator at build time) is unmaintained (RUSTSEC-2026-0374). | Info | Accepted: not reachable at runtime. |
 
-Checked and found fine: no `unsafe` Rust; `cargo audit` reports no vulnerabilities; the CLI's
+Checked and found fine: `unsafe` Rust is limited to one call (`getattrlistbulk`, in `crates/core/src/scan/bulk_macos.rs`, used to read folders faster on macOS); everything it returns is parsed by bounds-checked safe code and checked against the plain `fstatat` path by tests; `cargo audit` reports no vulnerabilities; the CLI's
 HTML map escapes file names (no script injection through crafted names); the CLI checks for
 symlinks before deleting and uses `remove_dir_all`, which does not follow symlinks; external
 tools are started with absolute paths and argument arrays (no shell), except the admin command

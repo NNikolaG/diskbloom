@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "refactor/**", "perf/**"]
+    branches: [main, "refactor/**"]
   pull_request:
 
 permissions:
