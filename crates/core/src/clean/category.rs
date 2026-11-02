@@ -89,6 +89,22 @@ impl Category {
         Self::ALL.into_iter().find(|c| c.id() == id)
     }
 
+    /// Build output and dependencies inside a project folder. For these, how long ago
+    /// the project itself was changed tells whether it is still in use.
+    pub const fn is_project(self) -> bool {
+        matches!(
+            self,
+            Self::RustBuild
+                | Self::NodeDeps
+                | Self::JsBuild
+                | Self::PythonCache
+                | Self::PythonVenv
+                | Self::Gradle
+                | Self::CocoaPods
+                | Self::SwiftBuild
+        )
+    }
+
     /// Safe categories regenerate on their own (builds, caches) and may be removed
     /// without looking. The others (emulators, VMs, backups, installers) need review.
     pub const fn is_safe(self) -> bool {

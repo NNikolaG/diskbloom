@@ -12,4 +12,4 @@ pub mod tree;
 pub mod volume;
 
 pub use scan::{Node, Scanner, human};
-pub use tree::{Entry, NodeId, Segment, Tree};
+pub use tree::{Change, Entry, NodeId, ScanInfo, Segment, Tree};

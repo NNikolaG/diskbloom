@@ -16,7 +16,7 @@ mod scan_job;
 pub use disk_tree::DiskTree;
 pub use dupe_job::DupeJob;
 pub use error::BloomError;
-pub use records::{CleanCandidate, DupGroupInfo, FileInfo, NodeInfo, SegmentInfo};
+pub use records::{CleanCandidate, DupGroupInfo, FileInfo, GrowthInfo, NodeInfo, SegmentInfo};
 pub use scan_job::ScanJob;
 
 uniffi::setup_scaffolding!();

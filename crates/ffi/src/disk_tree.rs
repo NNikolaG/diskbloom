@@ -1,21 +1,33 @@
 use crate::paths::user_path;
-use crate::{BloomError, CleanCandidate, FileInfo, NodeInfo, SegmentInfo};
-use diskbloom_core::{Scanner, Tree, clean, volume};
+use crate::{BloomError, CleanCandidate, FileInfo, GrowthInfo, NodeInfo, SegmentInfo};
+use diskbloom_core::{NodeId, ScanInfo, Scanner, Tree, clean, volume};
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
-use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// A scanned tree, shared with Swift. Reads run in parallel; updates (remove, rescan)
 /// lock it briefly.
 #[derive(uniffi::Object)]
 pub struct DiskTree {
     inner: RwLock<Tree>,
+    /// Set when the tree was loaded from a saved scan.
+    saved: ScanInfo,
 }
 
 impl DiskTree {
-    pub(crate) fn new(tree: Tree) -> Self {
+    pub(crate) fn new(tree: Tree, saved: ScanInfo) -> Self {
         Self {
             inner: RwLock::new(tree),
+            saved,
         }
+    }
+
+    /// Like `Tree::find`, accepting symlinked and short boot-volume forms of the path.
+    fn find_in(t: &Tree, p: &Path) -> Option<NodeId> {
+        t.find(p)
+            .or_else(|| std::fs::canonicalize(p).ok().and_then(|c| t.find(&c)))
+            .or_else(|| t.find(&volume::on_data_volume(p)))
     }
 
     // A panic while holding the lock cannot leave the tree half-updated in a way that
@@ -78,11 +90,73 @@ impl DiskTree {
     /// (`/Users/x` → `/System/Volumes/Data/Users/x`).
     #[allow(clippy::needless_pass_by_value)] // UniFFI passes owned strings
     pub fn find(&self, path: String) -> Option<u32> {
+        Self::find_in(&self.read(), Path::new(&path))
+    }
+
+    /// The deepest entry that contains `path` (the entry itself if it exists). For
+    /// mapping a changed path reported by the system to the folder to rescan.
+    #[allow(clippy::needless_pass_by_value)] // UniFFI passes owned strings
+    pub fn find_nearest(&self, path: String) -> Option<u32> {
         let t = self.read();
-        let p = Path::new(&path);
-        t.find(p)
-            .or_else(|| std::fs::canonicalize(p).ok().and_then(|c| t.find(&c)))
-            .or_else(|| t.find(&volume::on_data_volume(p)))
+        Path::new(&path)
+            .ancestors()
+            .find_map(|p| Self::find_in(&t, p))
+    }
+
+    /// An independent copy, e.g. to compare against after updating this tree.
+    pub fn copy(&self) -> Arc<DiskTree> {
+        Arc::new(DiskTree::new(self.snapshot(), self.saved))
+    }
+
+    /// Writes the tree to `path` (atomically, through a temporary file next to it).
+    ///
+    /// # Errors
+    /// Fails if the file cannot be written.
+    #[allow(clippy::needless_pass_by_value)] // UniFFI passes owned strings
+    pub fn save(&self, path: String, scanned_at: i64, event_id: u64) -> Result<(), BloomError> {
+        let target = Path::new(&path);
+        let tmp = target.with_extension("tmp");
+        {
+            let file = File::create(&tmp)?;
+            let info = ScanInfo {
+                scanned_at,
+                event_id,
+            };
+            self.read().save(BufWriter::new(file), info)?;
+        }
+        std::fs::rename(&tmp, target)?;
+        Ok(())
+    }
+
+    /// Loads a tree saved with [`DiskTree::save`].
+    ///
+    /// # Errors
+    /// Fails if the file is missing or damaged.
+    #[uniffi::constructor]
+    pub fn load(path: String) -> Result<Arc<Self>, BloomError> {
+        let (tree, info) = Tree::load(BufReader::new(File::open(path)?))?;
+        Ok(Arc::new(DiskTree::new(tree, info)))
+    }
+
+    /// When the loaded scan was made (Unix seconds); 0 for a fresh scan.
+    pub fn saved_at(&self) -> i64 {
+        self.saved.scanned_at
+    }
+
+    /// The marker stored with the loaded scan (the `FSEvents` event id); 0 for a fresh scan.
+    pub fn saved_event_id(&self) -> u64 {
+        self.saved.event_id
+    }
+
+    /// The most specific places that changed by at least `min_delta` bytes since `old`.
+    #[allow(clippy::needless_pass_by_value)] // UniFFI passes objects as Arc
+    pub fn growth_since(&self, old: Arc<DiskTree>, min_delta: u64, limit: u32) -> Vec<GrowthInfo> {
+        let old = old.snapshot();
+        self.read()
+            .growth(&old, min_delta, limit as usize)
+            .iter()
+            .map(GrowthInfo::from)
+            .collect()
     }
 
     /// Sunburst segments around `focus`; see `Tree::layout`.

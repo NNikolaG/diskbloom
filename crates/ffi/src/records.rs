@@ -97,6 +97,9 @@ pub struct CleanCandidate {
     pub safe: bool,
     /// Whether it is a folder.
     pub is_dir: bool,
+    /// For project folders: the last change anywhere in the project outside this item
+    /// (Unix seconds); 0 when not applicable.
+    pub last_activity: i64,
 }
 
 impl From<core::clean::Candidate> for CleanCandidate {
@@ -108,6 +111,7 @@ impl From<core::clean::Candidate> for CleanCandidate {
             category: c.category.id().to_owned(),
             safe: c.is_safe(),
             is_dir: c.is_dir,
+            last_activity: c.project_activity.unwrap_or(0),
         }
     }
 }
@@ -133,6 +137,30 @@ impl FileInfo {
             path: user_path(&tree.path(id)),
             size: e.size,
         })
+    }
+}
+
+/// A place that grew or shrank between two scans.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct GrowthInfo {
+    /// Id in the newer tree, if it still exists.
+    pub id: Option<u32>,
+    /// Path (firmlinked form).
+    pub path: String,
+    /// Size in the older scan.
+    pub old_size: u64,
+    /// Size in the newer scan.
+    pub new_size: u64,
+}
+
+impl From<&core::Change> for GrowthInfo {
+    fn from(c: &core::Change) -> Self {
+        Self {
+            id: c.id,
+            path: user_path(&c.path),
+            old_size: c.old_size,
+            new_size: c.new_size,
+        }
     }
 }
 

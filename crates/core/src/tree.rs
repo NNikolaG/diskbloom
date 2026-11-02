@@ -5,9 +5,13 @@
 //! rescan, and the sunburst geometry is computed here ([`Tree::layout`]) so the UI
 //! only draws.
 
+mod growth;
 mod layout;
+mod store;
 
+pub use growth::Change;
 pub use layout::Segment;
+pub use store::ScanInfo;
 
 use crate::scan::Node;
 use std::cmp::Reverse;
@@ -29,6 +33,8 @@ pub struct Entry {
     pub files: u64,
     /// Whether this is a folder.
     pub is_dir: bool,
+    /// Latest modification time (Unix seconds) of this entry or anything below it.
+    pub newest: i64,
     /// `None` for the root and for detached entries.
     pub parent: Option<NodeId>,
     /// Sorted by size, largest first.
@@ -156,7 +162,7 @@ impl Tree {
             *self = Tree::from_node(node, root_path);
             return self.root();
         };
-        let (new_size, new_files) = (node.size, node.files);
+        let (new_size, new_files, new_newest) = (node.size, node.files, node.newest);
         let new_id = push(&mut self.entries, node, Some(parent));
         if let Some(slot) = self.entries[parent as usize]
             .children
@@ -166,6 +172,10 @@ impl Tree {
             *slot = new_id;
         }
         self.entries[id as usize].parent = None;
+        for a in self.ancestors(parent) {
+            let e = &mut self.entries[a as usize];
+            e.newest = e.newest.max(new_newest);
+        }
         self.adjust_ancestors(
             parent,
             |s| (s + new_size).saturating_sub(old_size),
@@ -248,6 +258,7 @@ fn push(entries: &mut Vec<Entry>, node: Node, parent: Option<NodeId>) -> NodeId 
         size: node.size,
         files: node.files,
         is_dir: node.is_dir,
+        newest: node.newest,
         parent,
         children: Vec::with_capacity(node.children.len()),
     });
@@ -269,6 +280,7 @@ pub(crate) mod tests {
             size,
             files: 1,
             is_dir: false,
+            newest: 0,
             children: vec![],
         }
     }
@@ -280,6 +292,7 @@ pub(crate) mod tests {
             size: children.iter().map(|c| c.size).sum(),
             files: children.iter().map(|c| c.files).sum(),
             is_dir: true,
+            newest: children.iter().map(|c| c.newest).max().unwrap_or(0),
             children,
         }
     }

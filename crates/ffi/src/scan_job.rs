@@ -1,5 +1,5 @@
 use crate::{BloomError, DiskTree};
-use diskbloom_core::{Scanner, Tree};
+use diskbloom_core::{ScanInfo, Scanner, Tree};
 use std::sync::Arc;
 
 /// One scan of a folder.
@@ -33,7 +33,7 @@ impl ScanJob {
             return Err(BloomError::Cancelled);
         }
         let tree = Tree::from_node(node, self.scanner.root().to_path_buf());
-        Ok(Arc::new(DiskTree::new(tree)))
+        Ok(Arc::new(DiskTree::new(tree, ScanInfo::default())))
     }
 
     /// Entries visited so far.

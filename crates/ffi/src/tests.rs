@@ -68,3 +68,40 @@ fn cancel_reports_cancelled() {
     job.cancel();
     assert!(matches!(job.run(), Err(BloomError::Cancelled)));
 }
+
+#[test]
+fn save_load_and_growth() {
+    let d = tempfile::tempdir().unwrap();
+    let r = d.path().join("root");
+    std::fs::create_dir_all(r.join("cache")).unwrap();
+    std::fs::write(r.join("cache/a"), vec![1u8; 50_000]).unwrap();
+    let tree = ScanJob::new(r.to_string_lossy().into_owned())
+        .unwrap()
+        .run()
+        .unwrap();
+
+    let file = d.path().join("scan.dbtree").to_string_lossy().into_owned();
+    tree.save(file.clone(), 1_700_000_000, 7).unwrap();
+    let loaded = DiskTree::load(file).unwrap();
+    assert_eq!(
+        (loaded.saved_at(), loaded.saved_event_id()),
+        (1_700_000_000, 7)
+    );
+    assert_eq!(
+        loaded.info(loaded.root()).unwrap().size,
+        tree.info(tree.root()).unwrap().size
+    );
+
+    // Something new appears in cache/; refresh only the nearest known folder.
+    let before = loaded.copy();
+    std::fs::write(r.join("cache/b"), vec![1u8; 400_000]).unwrap();
+    let changed = r.join("cache/b").to_string_lossy().into_owned();
+    let cache = loaded.find_nearest(changed).unwrap();
+    assert_eq!(loaded.info(cache).unwrap().name, "cache");
+    loaded.rescan(cache).unwrap();
+
+    let growth = loaded.growth_since(before, 100_000, 10);
+    assert_eq!(growth.len(), 1);
+    assert!(growth[0].path.ends_with("cache/b"));
+    assert!(growth[0].new_size >= 400_000 && growth[0].old_size == 0);
+}

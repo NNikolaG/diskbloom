@@ -37,6 +37,9 @@ pub struct Candidate {
     pub category: Category,
     /// Whether it is a folder.
     pub is_dir: bool,
+    /// For project categories: the latest change (Unix seconds) anywhere in the project
+    /// outside this candidate, i.e. when someone last worked on it.
+    pub project_activity: Option<i64>,
 }
 
 impl Candidate {
@@ -142,6 +145,9 @@ impl Walk<'_> {
                     size: e.size,
                     category,
                     is_dir: e.is_dir,
+                    project_activity: category
+                        .is_project()
+                        .then(|| self.project_activity(parent, id)),
                 });
             }
             return; // a candidate is removed as a whole
@@ -194,6 +200,19 @@ impl Walk<'_> {
                     && (r.child.is_empty() || self.has_file(id, r.child))
             })
             .map(|r| r.category)
+    }
+
+    /// The newest change in the project folder `project`, ignoring `candidate` (build
+    /// output changes on every build, but that is not editing the project).
+    fn project_activity(&self, project: NodeId, candidate: NodeId) -> i64 {
+        self.tree
+            .children(project)
+            .iter()
+            .filter(|&&c| c != candidate)
+            .filter_map(|&c| self.tree.get(c))
+            .map(|e| e.newest)
+            .max()
+            .unwrap_or(0)
     }
 
     /// Whether folder `dir` directly contains a file with one of `names`.

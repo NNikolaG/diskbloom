@@ -30,39 +30,44 @@ pub struct Node {
     pub files: u64,
     /// Whether this is a folder.
     pub is_dir: bool,
+    /// Latest modification time (Unix seconds) of this entry or anything below it.
+    pub newest: i64,
     /// Children, largest first. Empty for files and unreadable folders.
     pub children: Vec<Node>,
 }
 
 impl Node {
-    fn file(name: String, size: u64) -> Self {
+    fn file(name: String, size: u64, mtime: i64) -> Self {
         Self {
             name,
             size,
             files: 1,
             is_dir: false,
+            newest: mtime,
             children: Vec::new(),
         }
     }
 
     /// A folder whose contents were not read (cancelled, other volume, no permission).
-    fn unread_dir(name: String, own_size: u64) -> Self {
+    fn unread_dir(name: String, own_size: u64, mtime: i64) -> Self {
         Self {
             name,
             size: own_size,
             files: 0,
             is_dir: true,
+            newest: mtime,
             children: Vec::new(),
         }
     }
 
-    fn dir(name: String, own_size: u64, mut children: Vec<Node>) -> Self {
+    fn dir(name: String, own_size: u64, mtime: i64, mut children: Vec<Node>) -> Self {
         children.sort_unstable_by_key(|c| std::cmp::Reverse(c.size));
         Self {
             name,
             size: own_size + children.iter().map(|c| c.size).sum::<u64>(),
             files: children.iter().map(|c| c.files).sum(),
             is_dir: true,
+            newest: children.iter().map(|c| c.newest).fold(mtime, i64::max),
             children,
         }
     }
@@ -89,9 +94,15 @@ struct Info {
     dev: u64,
     ino: u64,
     nlink: u64,
+    /// Modification time, Unix seconds.
+    mtime: i64,
 }
 
 fn to_u64<T: TryInto<u64>>(value: T) -> u64 {
+    value.try_into().unwrap_or(0)
+}
+
+fn to_i64<T: TryInto<i64>>(value: T) -> i64 {
     value.try_into().unwrap_or(0)
 }
 
@@ -103,6 +114,7 @@ impl From<&Stat> for Info {
             dev: to_u64(st.st_dev),
             ino: to_u64(st.st_ino),
             nlink: to_u64(st.st_nlink),
+            mtime: to_i64(st.st_mtime),
         }
     }
 }
@@ -115,6 +127,7 @@ impl From<&fs::Metadata> for Info {
             dev: m.dev(),
             ino: m.ino(),
             nlink: m.nlink(),
+            mtime: m.mtime(),
         }
     }
 }
@@ -203,18 +216,18 @@ impl Scanner {
                 None => visit(),
             })
         } else {
-            Ok(Node::file(name, self.counted_size(&info)))
+            Ok(Node::file(name, self.counted_size(&info), info.mtime))
         }
     }
 
     fn visit_dir(&self, path: &Path, name: String, info: Info) -> Node {
         let other_volume = !self.cross_fs && info.dev != self.root_dev;
         if self.is_cancelled() || other_volume {
-            return Node::unread_dir(name, info.size);
+            return Node::unread_dir(name, info.size, info.mtime);
         }
         let Ok(entries) = self.read_dir(path) else {
             self.count_error();
-            return Node::unread_dir(name, info.size);
+            return Node::unread_dir(name, info.size, info.mtime);
         };
         self.scanned
             .fetch_add(entries.len() as u64, Ordering::Relaxed);
@@ -226,11 +239,11 @@ impl Scanner {
                     let child_path = path.join(OsStr::from_bytes(child.as_bytes()));
                     self.visit_dir(&child_path, child_name, child_info)
                 } else {
-                    Node::file(child_name, self.counted_size(&child_info))
+                    Node::file(child_name, self.counted_size(&child_info), child_info.mtime)
                 }
             })
             .collect();
-        Node::dir(name, info.size, children)
+        Node::dir(name, info.size, info.mtime, children)
     }
 
     /// Names and stat info of everything in `path` (not following symlinks). The folder

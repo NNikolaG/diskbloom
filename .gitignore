@@ -6,3 +6,4 @@
 *.html
 !crates/cli/src/sunburst.html
 .DS_Store
+/.claude/worktrees

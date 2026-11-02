@@ -183,3 +183,33 @@ fn scanning_inside_rule_folder_lists_children() {
     assert_eq!(c.len(), 1);
     assert_eq!(c[0].category, Category::AppCache);
 }
+
+#[test]
+fn project_candidates_carry_project_activity() {
+    use std::time::{Duration, SystemTime};
+    let d = tempfile::tempdir().unwrap();
+    let r = fs::canonicalize(d.path()).unwrap();
+    fs::create_dir_all(r.join("old/target/debug")).unwrap();
+    fs::write(r.join("old/Cargo.toml"), "x").unwrap();
+    fs::write(r.join("old/target/debug/app"), vec![1u8; 9000]).unwrap();
+    // The project was last edited long ago; only its build output is recent.
+    let long_ago = SystemTime::now() - Duration::from_secs(400 * 24 * 3600);
+    fs::File::options()
+        .write(true)
+        .open(r.join("old/Cargo.toml"))
+        .unwrap()
+        .set_modified(long_ago)
+        .unwrap();
+
+    let s = Scanner::new(&r, false).unwrap();
+    let tree = Tree::from_node(s.scan().unwrap(), r.clone());
+    let c = find_with_home(&tree, None);
+    assert_eq!(c.len(), 1);
+    let activity = c[0].project_activity.unwrap();
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let age_days = (i64::try_from(now).unwrap() - activity) / 86_400;
+    assert!((399..=401).contains(&age_days), "{age_days}");
+}
