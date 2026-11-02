@@ -65,7 +65,9 @@ jobs:
           pkill -x Diskbloom; sleep 2
           # 2) scan + Trash list
           open --env DISKBLOOM_DEMO=1 --env DISKBLOOM_SCAN="$HOME" "$APP"
-          sleep 45
+          sleep 4
+          screencapture -x $OUT/1b-scanning.png   # live map while scanning
+          sleep 41
           pgrep -x Diskbloom
           screencapture -x $OUT/2-map.png
           # 2b) saved scan: a new big file, then reopen -> "Changes since" lists it
