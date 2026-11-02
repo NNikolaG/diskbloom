@@ -1,18 +1,20 @@
 import AppKit
 import Combine
+import Observation
 
 /// Free space of the mounted volumes, for the menu bar item and the low-space warning.
 /// Refreshes every minute and whenever a volume is mounted, unmounted or renamed.
 @MainActor
-final class DiskStatus: ObservableObject {
+@Observable
+final class DiskStatus {
     static let refreshInterval: Duration = .seconds(60)
 
-    @Published private(set) var volumes: [VolumeUsage] = []
+    private(set) var volumes: [VolumeUsage] = []
 
-    private let lowSpace: LowSpaceMonitor
-    private var refreshTask: Task<Void, Never>?
-    private var timer: Task<Void, Never>?
-    private var subscriptions: Set<AnyCancellable> = []
+    @ObservationIgnored private let lowSpace: LowSpaceMonitor
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var timer: Task<Void, Never>?
+    @ObservationIgnored private var subscriptions: Set<AnyCancellable> = []
 
     var boot: VolumeUsage? { volumes.first(where: \.isBoot) }
 

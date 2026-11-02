@@ -30,7 +30,8 @@ Command Line Tools.
 
 ## Swift (`macos/`)
 
-- Deployment target is macOS 13; check availability before using newer APIs.
+- Deployment target is macOS 14 (Sonoma). State lives in `@Observable` models read with
+  `@Environment`; check availability before using newer APIs.
 - Swift 6 language mode. Long work runs off the main actor (`Task.detached`), UI state
   stays on `@MainActor`.
 - One type per file, in the folder of the feature it belongs to. Logic that needs no

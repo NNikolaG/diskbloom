@@ -4,7 +4,7 @@ import SwiftUI
 /// Local Time Machine snapshots, often the largest part of "purgeable" and hidden space.
 /// macOS removes them only when space runs out; here they can go right away.
 struct SnapshotsView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var snapshots: [TimeMachineSnapshot]?
     @State private var selected: Set<String> = []

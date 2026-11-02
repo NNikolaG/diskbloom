@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Duplicate files. Rust does the search: size, then a hash of the head, then a full hash.
 struct DuplicatesView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var job: DupeJob?
     @State private var progress: (done: UInt64, total: UInt64) = (0, 0)
     @State private var minSize: UInt64 = 1_000_000

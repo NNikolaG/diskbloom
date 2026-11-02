@@ -4,7 +4,7 @@ import SwiftUI
 
 /// What grew or shrank since the previous scan of this place.
 struct ChangesCard: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         if model.catchingUp, let since = model.scannedAt {
@@ -42,7 +42,7 @@ struct ChangesCard: View {
 
 /// One place that grew or shrank; clicking it shows it on the map.
 private struct ChangeRow: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     let change: GrowthInfo
 
     private var delta: Int64 {

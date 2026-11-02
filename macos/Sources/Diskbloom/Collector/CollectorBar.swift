@@ -5,7 +5,7 @@ import SwiftUI
 /// The Trash list: collect items while browsing, see the total, then move everything to
 /// the Trash at once. Always visible so items can be dragged onto it.
 struct CollectorBar: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var confirm = false
     @State private var targeted = false
 

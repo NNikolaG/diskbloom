@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Progress while a scan runs: the map fills in as top-level folders finish.
 struct ScanningView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     let path: String
     let scanned: UInt64
 

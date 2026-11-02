@@ -42,7 +42,7 @@ if ! command -v swift >/dev/null; then
 fi
 
 echo "==> Rust (${TARGETS[*]})"
-export MACOSX_DEPLOYMENT_TARGET=13.0
+export MACOSX_DEPLOYMENT_TARGET=14.0
 OUTDIRS=()
 if command -v rustup >/dev/null; then
   for t in "${TARGETS[@]}"; do

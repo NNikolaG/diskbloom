@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Context menu for a disk or folder in the sidebar.
 struct PlaceMenu: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     let place: Place
     let ejectable: Bool
 

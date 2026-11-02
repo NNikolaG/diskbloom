@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The largest files in the scan, with when they were last opened (from Spotlight).
 struct LargestFilesView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var entries: [Entry]?
     @State private var age: FileAge = .any
 

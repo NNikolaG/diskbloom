@@ -65,7 +65,7 @@ jobs:
             brew install --cask nnikolag/diskbloom/diskbloom
             ```
 
-            Works on macOS 13 Ventura or newer, Macs with Apple Silicon (M1 or newer).
+            Works on macOS 14 Sonoma or newer, Macs with Apple Silicon (M1 or newer).
 
   # Points Casks/diskbloom.rb at the zip that was just published and commits it to main.
   # The push uses GITHUB_TOKEN, and GitHub does not start workflows for such pushes, so this

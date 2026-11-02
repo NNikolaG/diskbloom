@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Mounted disks and common folders. Selecting one shows its overview.
 struct VolumesSidebar: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var volumes = MountedVolume.all()
 
     private static let folders: [Place] = {
@@ -19,6 +19,7 @@ struct VolumesSidebar: View {
     }()
 
     var body: some View {
+        @Bindable var model = model
         List(selection: $model.sidebarSelection) {
             Section("Disks") {
                 ForEach(volumes) { volume in

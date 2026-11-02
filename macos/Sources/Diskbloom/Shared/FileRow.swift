@@ -5,7 +5,7 @@ import SwiftUI
 
 /// One file in the largest-files, duplicates, file types and search lists.
 struct FileRow: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     let file: FileInfo
     var detail: String?
     /// A click runs this (e.g. a folder opens on the map); without it a double click

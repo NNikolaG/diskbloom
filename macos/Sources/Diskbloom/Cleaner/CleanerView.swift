@@ -9,7 +9,7 @@ import SwiftUI
 /// Stays fast with tens of thousands of candidates: grouping runs off the main thread,
 /// categories start collapsed, and an open category shows at most `maxRows` items.
 struct CleanerView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     /// `nil` while loading.

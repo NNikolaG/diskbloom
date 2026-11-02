@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The path from the scanned root to the focused folder; each part zooms out to it.
 struct Breadcrumbs: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -25,7 +25,7 @@ struct Breadcrumbs: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .onChange(of: model.focus) { id in proxy.scrollTo(id, anchor: .trailing) }
+            .onChange(of: model.focus) { _, id in proxy.scrollTo(id, anchor: .trailing) }
         }
     }
 }

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The menu bar item itself: a disk symbol and the startup disk's free space ("84 GB").
 struct MenuBarLabel: View {
-    @ObservedObject var status: DiskStatus
+    let status: DiskStatus
 
     var body: some View {
         if let boot = status.boot {

@@ -5,7 +5,7 @@ import SwiftUI
 
 /// One item in the children list: color key, name, share bar, size and a Trash list toggle.
 struct ChildRow: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     let node: NodeInfo
     let total: UInt64
     @State private var hover = false

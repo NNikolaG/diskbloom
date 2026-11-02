@@ -1,64 +1,66 @@
 import DiskbloomFFI
 import DiskbloomKit
 import Foundation
+import Observation
 
 /// App state. Rust owns the scanned tree; Swift only keeps what is on screen.
 @MainActor
-final class AppModel: ObservableObject {
+@Observable
+final class AppModel {
     nonisolated static let rings: UInt32 = 6
     nonisolated static let minFraction = 0.003
 
     // MARK: Selection and scan
-    @Published var selected: Place?
-    @Published var phase: ScanPhase = .idle
-    @Published private(set) var tree: DiskTree?
+    var selected: Place?
+    var phase: ScanPhase = .idle
+    private(set) var tree: DiskTree?
     /// The place `tree` belongs to, and when it was scanned.
-    @Published private(set) var scannedPlace: Place?
-    @Published var scannedAt: Date?
+    private(set) var scannedPlace: Place?
+    var scannedAt: Date?
     /// Entries the scan could not read (no Full Disk Access).
-    @Published var inaccessible: UInt64 = 0
+    var inaccessible: UInt64 = 0
     /// Used on the volume but not seen by the scan.
-    @Published private(set) var hiddenSpace: UInt64 = 0
-    @Published var refreshing = false
+    private(set) var hiddenSpace: UInt64 = 0
+    var refreshing = false
     /// Sunburst of the folders finished so far, while a scan runs.
-    @Published private(set) var scanPreview: [SegmentInfo] = []
+    private(set) var scanPreview: [SegmentInfo] = []
     /// Bringing a saved scan up to date with what changed on disk since.
-    @Published var catchingUp = false
+    var catchingUp = false
     /// Biggest changes since the previous scan of this place, and when that was.
-    @Published var growth: [GrowthInfo]?
-    @Published var growthSince: Date?
+    var growth: [GrowthInfo]?
+    var growthSince: Date?
 
     // MARK: Navigation
-    @Published var resultMode: ResultMode = .map
+    var resultMode: ResultMode = .map
     /// Text in the search field; results replace the current mode while it is not empty.
-    @Published var searchQuery = ""
-    @Published private(set) var focus: UInt32 = 0
-    @Published private(set) var segments: [SegmentInfo] = []
-    @Published private(set) var crumbs: [NodeInfo] = []
-    @Published private(set) var children: [NodeInfo] = []
+    var searchQuery = ""
+    private(set) var focus: UInt32 = 0
+    private(set) var segments: [SegmentInfo] = []
+    private(set) var crumbs: [NodeInfo] = []
+    private(set) var children: [NodeInfo] = []
     /// Increases on every tree or focus change; views use it as `.task(id:)`.
-    @Published private(set) var dataVersion = 0
-    @Published var hovered: SegmentInfo?
+    private(set) var dataVersion = 0
+    var hovered: SegmentInfo?
     /// The last item under the pointer, for Quick Look with the space bar.
-    @Published var lastHoveredID: UInt32?
-    @Published var previewURL: URL?
+    var lastHoveredID: UInt32?
+    var previewURL: URL?
 
     // MARK: Collector, cleanup, alerts
-    @Published var collector: [CollectedItem] = []
+    var collector: [CollectedItem] = []
     /// Moving to the Trash: items done and total; `nil` when idle.
-    @Published var trashProgress: (done: Int, total: Int)?
-    @Published var showCleaner = false
+    var trashProgress: (done: Int, total: Int)?
+    var showCleaner = false
     /// Result of the last duplicate search; `nil` if none ran for this scan.
-    @Published var dupeGroups: [DupGroupInfo]?
-    @Published var alert: String?
+    var dupeGroups: [DupGroupInfo]?
+    var alert: String?
 
-    private var job: ScanJob?
-    private var openCleanerAfterScan = false
+    @ObservationIgnored private var job: ScanJob?
+    @ObservationIgnored private var openCleanerAfterScan = false
     /// When and at which FSEvents id `tree` matched the disk; used to save it.
-    var sync: ScanStore.Sync?
+    @ObservationIgnored var sync: ScanStore.Sync?
     /// Saves run one after another so they never write the same file at once.
-    var saveTask: Task<Void, Never>?
-    let launchOptions: LaunchOptions
+    @ObservationIgnored var saveTask: Task<Void, Never>?
+    @ObservationIgnored let launchOptions: LaunchOptions
 
     init(launchOptions: LaunchOptions = .current) {
         self.launchOptions = launchOptions

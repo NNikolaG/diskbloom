@@ -5,7 +5,7 @@ import SwiftUI
 /// Files and folders in the scan whose name contains the search text, largest first.
 /// Rust walks the tree off the main thread, after a short pause in typing.
 struct SearchResultsView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var hits: [SearchHit]?
 
     /// What a search depends on; a new value cancels the running one.

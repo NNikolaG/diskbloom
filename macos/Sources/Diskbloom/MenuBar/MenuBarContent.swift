@@ -4,8 +4,8 @@ import SwiftUI
 /// The window under the menu bar item: every disk with its free space, and shortcuts
 /// into the app.
 struct MenuBarContent: View {
-    @EnvironmentObject private var model: AppModel
-    @ObservedObject var status: DiskStatus
+    @Environment(AppModel.self) private var model
+    let status: DiskStatus
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
 

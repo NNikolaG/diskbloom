@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The sunburst map. Rust computes the layout; this view draws it and handles the pointer.
 struct SunburstView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         GeometryReader { proxy in

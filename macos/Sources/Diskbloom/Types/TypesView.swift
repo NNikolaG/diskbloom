@@ -5,7 +5,7 @@ import SwiftUI
 /// What the scan is made of: size and count per file kind, and the largest items of
 /// the selected kind. Rust classifies by extension and counts `.app` bundles as one item.
 struct TypesView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     /// Kinds with at least one item, largest first.
     @State private var kinds: [KindInfo]?
     @State private var selected: FileKind?

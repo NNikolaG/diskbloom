@@ -4,9 +4,10 @@ import SwiftUI
 
 /// The window: sidebar with disks and folders, and the detail area for the current phase.
 struct ContentView: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
+        @Bindable var model = model
         NavigationSplitView {
             VolumesSidebar()
                 .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
@@ -17,7 +18,7 @@ struct ContentView: View {
             }
             .toolbar { toolbar }
         }
-        .sheet(isPresented: $model.showCleaner) { CleanerView().environmentObject(model) }
+        .sheet(isPresented: $model.showCleaner) { CleanerView().environment(model) }
         .quickLookPreview($model.previewURL)
         .alert("Diskbloom", isPresented: $model.isShowingAlert) {
             Button("OK") { model.alert = nil }
@@ -45,6 +46,7 @@ struct ContentView: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        @Bindable var model = model
         ToolbarItemGroup {
             if model.phase == .ready {
                 Picker("View", selection: $model.resultMode) {
@@ -55,16 +57,16 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
                 .help("Map, largest files, duplicates or file types")
-                Button { model.showOverview() } label: { Label("Disk overview", systemImage: "square.grid.2x2") }
+                Button("Disk overview", systemImage: "square.grid.2x2") { model.showOverview() }
                     .help("Back to the overview and actions for this disk")
-                Button { model.zoomOut() } label: { Label("Back", systemImage: "chevron.left") }
+                Button("Back", systemImage: "chevron.left") { model.zoomOut() }
                     .disabled(model.crumbs.count < 2 || model.resultMode != .map)
-                Button { model.refresh() } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                Button("Refresh", systemImage: "arrow.clockwise") { model.refresh() }
                     .help("Rescan only this folder")
                     .disabled(model.refreshing)
-                Button { model.showCleaner = true } label: { Label("Smart Clean", systemImage: "sparkles") }
+                Button("Smart Clean", systemImage: "sparkles") { model.showCleaner = true }
             }
-            Button { chooseFolder() } label: { Label("Choose folder", systemImage: "folder") }
+            Button("Choose folder", systemImage: "folder") { chooseFolder() }
         }
     }
 

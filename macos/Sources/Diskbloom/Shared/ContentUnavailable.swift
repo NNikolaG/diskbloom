@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// A centered placeholder: symbol, title and message.
+/// A centered placeholder: symbol, title and message (the system `ContentUnavailableView`,
+/// with a variant for messages that must not be translated).
 struct ContentUnavailable: View {
     let title: LocalizedStringKey
     let message: Text
@@ -20,17 +21,10 @@ struct ContentUnavailable: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text(title).font(.title2.bold())
+        ContentUnavailableView {
+            Label(title, systemImage: symbol)
+        } description: {
             message
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

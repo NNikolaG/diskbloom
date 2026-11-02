@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Menu bar commands and their keyboard shortcuts.
 struct AppCommands: Commands {
-    @ObservedObject var model: AppModel
+    let model: AppModel
 
     var body: some Commands {
         CommandGroup(after: .newItem) {

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The focused folder's contents next to the map.
 struct ChildrenList: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

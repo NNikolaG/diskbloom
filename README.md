@@ -61,7 +61,7 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
 ## Install
 
 **Download:** get the latest **Diskbloom-x.y.z.dmg** from
-[Releases](https://github.com/NNikolaG/diskbloom/releases/latest) (Apple Silicon, macOS 13+)
+[Releases](https://github.com/NNikolaG/diskbloom/releases/latest) (Apple Silicon, macOS 14+)
 and drag **Diskbloom** to **Applications**. The app is not notarized, so the first time
 right-click it → **Open** → **Open**, or run:
 
@@ -97,7 +97,7 @@ Then give it **Full Disk Access** (see below) so it can see the whole disk.
 <details>
 <summary><b>Build from source</b> (Intel Macs, or the latest code)</summary>
 
-Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
+Requirements: macOS 14 Sonoma or newer, Apple Silicon or Intel.
 
 1. Xcode Command Line Tools (full Xcode is not needed):
    ```bash

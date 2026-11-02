@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Overview of a disk or folder after it is selected in the sidebar: usage and actions.
 struct PlaceOverview: View {
-    @EnvironmentObject private var model: AppModel
+    @Environment(AppModel.self) private var model
     let place: Place
 
     @State private var capacity: VolumeCapacity?
@@ -38,7 +38,7 @@ struct PlaceOverview: View {
         .sheet(isPresented: $showSnapshots, onDismiss: {
             Task { await loadSnapshotCount() }
         }) {
-            SnapshotsView().environmentObject(model)
+            SnapshotsView().environment(model)
         }
         .confirmationDialog("Permanently delete everything in the Trash?", isPresented: $confirmEmptyTrash) {
             Button("Empty Trash", role: .destructive) {

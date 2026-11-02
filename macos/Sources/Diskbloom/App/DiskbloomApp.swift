@@ -3,9 +3,9 @@ import SwiftUI
 
 @main
 struct DiskbloomApp: App {
-    @StateObject private var model: AppModel
+    @State private var model: AppModel
     /// Free space for the menu bar item and the low-space notification.
-    @StateObject private var diskStatus: DiskStatus
+    @State private var diskStatus: DiskStatus
     @AppStorage(AppSettings.showMenuBarExtraKey) private var showMenuBarExtra = true
 
     init() {
@@ -16,8 +16,8 @@ struct DiskbloomApp: App {
         // Created here so the notification handler is ready even when a click on the
         // notification is what launched the app.
         let model = AppModel()
-        _model = StateObject(wrappedValue: model)
-        _diskStatus = StateObject(wrappedValue: DiskStatus { [weak model] in
+        _model = State(initialValue: model)
+        _diskStatus = State(initialValue: DiskStatus { [weak model] in
             model?.showOverview(of: .bootVolume)
             MainWindow.show()
         })
@@ -26,7 +26,7 @@ struct DiskbloomApp: App {
     var body: some Scene {
         WindowGroup(id: MainWindow.id) {
             ContentView()
-                .environmentObject(model)
+                .environment(model)
                 .frame(minWidth: 960, minHeight: 620)
                 .onAppear { model.applyLaunchOptions() }
         }
@@ -39,7 +39,7 @@ struct DiskbloomApp: App {
 
         MenuBarExtra(isInserted: $showMenuBarExtra) {
             MenuBarContent(status: diskStatus)
-                .environmentObject(model)
+                .environment(model)
         } label: {
             MenuBarLabel(status: diskStatus)
         }
