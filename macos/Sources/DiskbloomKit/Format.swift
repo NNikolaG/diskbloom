@@ -7,6 +7,24 @@ public enum Format {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .file)
     }
 
+    /// Short form for tight spaces such as the menu bar: "84 GB", "6.5 GB", "1.2 TB".
+    /// Decimal units like `bytes`, at most one fraction digit and only below 10.
+    public static func shortBytes(_ value: Int64, locale: Locale = .current) -> String {
+        let units: [(name: String, size: Double)] = [("TB", 1e12), ("GB", 1e9), ("MB", 1e6)]
+        let bytes = Double(max(0, value))
+        guard var index = units.firstIndex(where: { bytes >= $0.size }) else {
+            return Self.bytes(UInt64(max(0, value)))
+        }
+        // Use the bigger unit once rounding would print "1,000 GB".
+        if index > 0, bytes / units[index].size >= 999.5 { index -= 1 }
+        let unit = units[index]
+        let amount = bytes / unit.size
+        let style = FloatingPointFormatStyle<Double>.number
+            .precision(.fractionLength(0...(amount < 9.95 ? 1 : 0)))
+            .locale(locale)
+        return "\(amount.formatted(style)) \(unit.name)"
+    }
+
     /// Localized integer with grouping: "12,345".
     public static func count<T: BinaryInteger>(_ value: T) -> String {
         Int64(clamping: value).formatted(.number)
