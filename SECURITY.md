@@ -16,8 +16,9 @@ Diskbloom usually runs with **Full Disk Access**, so it is designed to be boring
   contents are read only by the duplicate finder, to hash files of identical size locally.
 - **Never follows symlinks**, neither while scanning nor while deleting.
 - **Deletes only what you confirm.** Everything goes to the macOS Trash (you can put it back),
-  except iOS simulators (`xcrun simctl delete`) and Time Machine snapshots (`tmutil`, asks for
-  your admin password). The Docker disk image is never deleted.
+  except iOS simulators and simulator runtimes (`xcrun simctl delete`, `xcrun simctl runtime
+  delete`) and Time Machine snapshots (`tmutil`, asks for your admin password). The Docker
+  disk image is never deleted.
 - **Conservative cleanup rules.** Project rules (`node_modules`, `target/`, …) never apply
   inside `node_modules`, `.app` bundles, `~/Library`, system folders or tool folders such as
   `~/.nvm`, `~/.vscode` or `~/.cargo`. Only regenerable categories are preselected.
