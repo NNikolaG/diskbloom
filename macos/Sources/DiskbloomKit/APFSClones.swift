@@ -46,13 +46,22 @@ public enum APFSClones {
         }
     }
 
-    /// Bytes deleting all but one of `files` would really free: the private sizes of
-    /// all copies minus the largest (the copy that stays). `nil` if unknown for any file.
-    public static func reclaimable(_ files: [String]) -> UInt64? {
-        let sizes = files.map { info(path: $0)?.privateSize }
-        guard !sizes.isEmpty, sizes.allSatisfy({ $0 != nil }) else { return nil }
-        let values = sizes.compactMap { $0 }
-        return values.reduce(0, +) - (values.max() ?? 0)
+    /// Bytes that deleting all but one of `files` (identical copies of `size` bytes each)
+    /// would really free. A copy that owns its blocks is stored separately; copies that
+    /// share blocks with a clone are stored once between them. Only one stored copy has
+    /// to remain. `nil` if the volume cannot tell for some file.
+    public static func reclaimable(_ files: [String], size: UInt64) -> UInt64? {
+        let privateSizes = files.map { info(path: $0)?.privateSize }
+        guard !privateSizes.isEmpty, privateSizes.allSatisfy({ $0 != nil }) else { return nil }
+        return reclaimable(privateSizes: privateSizes.compactMap { $0 }, size: size)
+    }
+
+    /// The counting behind `reclaimable(_:size:)`.
+    static func reclaimable(privateSizes: [UInt64], size: UInt64) -> UInt64 {
+        // Mostly private: an independent copy. Mostly shared: part of a clone family.
+        let independent = privateSizes.filter { $0 * 10 >= size * 9 }.count
+        let shared = independent < privateSizes.count ? 1 : 0
+        return UInt64(max(0, independent + shared - 1)) * size
     }
 
     public enum ReplaceError: Error, Equatable {

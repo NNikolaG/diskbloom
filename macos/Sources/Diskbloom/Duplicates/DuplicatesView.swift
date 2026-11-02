@@ -158,7 +158,7 @@ struct DuplicatesView: View {
             var result: [UInt32: UInt64] = [:]
             for g in all {
                 guard let first = g.files.first else { continue }
-                result[first.id] = APFSClones.reclaimable(g.files.map(\.path))
+                result[first.id] = APFSClones.reclaimable(g.files.map(\.path), size: g.size)
             }
             return result
         }.value

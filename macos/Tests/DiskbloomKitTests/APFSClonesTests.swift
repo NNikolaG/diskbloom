@@ -29,8 +29,17 @@ struct APFSClonesTests {
         #expect(b.privateSize >= 4_000_000) // a plain copy owns its blocks
         #expect(a.privateSize == 0 && c.privateSize == 0) // original and clone share them
         #expect(a.cloneID == c.cloneID)
-        #expect(APFSClones.reclaimable([original, clone]) == 0)
-        #expect((APFSClones.reclaimable([original, copy]) ?? 0) >= 4_000_000)
+        #expect(APFSClones.reclaimable([original, clone], size: 4_000_000) == 0)
+        #expect(APFSClones.reclaimable([original, copy], size: 4_000_000) == 4_000_000)
+        #expect(APFSClones.reclaimable([original, clone, copy], size: 4_000_000) == 4_000_000)
+    }
+
+    @Test func reclaimableCountsStoredCopies() {
+        let mb: UInt64 = 1_000_000
+        #expect(APFSClones.reclaimable(privateSizes: [mb, mb, mb], size: mb) == 2 * mb)
+        #expect(APFSClones.reclaimable(privateSizes: [0, 0], size: mb) == 0)
+        #expect(APFSClones.reclaimable(privateSizes: [0, 0, mb], size: mb) == mb)
+        #expect(APFSClones.reclaimable(privateSizes: [mb], size: mb) == 0)
     }
 
     @Test func replaceWithCloneFreesTheCopyAndKeepsItsName() throws {
