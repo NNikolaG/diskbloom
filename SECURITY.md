@@ -25,10 +25,15 @@ Diskbloom usually runs with **Full Disk Access**, so it is designed to be boring
 - **Hardened runtime.** The app is signed with the hardened runtime, so other processes cannot
   inject code into it to borrow its Full Disk Access. The only entitlement is sending Apple
   Events to Finder (for "Empty Trash").
-- **No telemetry.** The only thing the app stores is its last scan of each place (file
+- **No telemetry.** The only things the app stores are its last scan of each place (file
   names and sizes, in `~/Library/Caches/io.github.nnikolag.diskbloom/scans`), so it can
-  show it right away next time and list what grew. It stays on your Mac; **Forget Saved
-  Scans** in the File menu deletes it.
+  show it right away next time and list what grew, and two on/off settings in its
+  preferences. Both stay on your Mac; **Forget Saved Scans** in the File menu deletes the scans.
+- **Notifications only when needed.** The menu bar item reads nothing but the volumes'
+  capacity (`URLResourceValues`). The app asks for permission to show notifications only
+  when the startup disk first runs low, never at launch; the notification is local and
+  contains the free space and the disk's name. Turn it off in Settings (⌘,) or in
+  System Settings → Notifications.
 
 ## Security review (v0.3.0)
 

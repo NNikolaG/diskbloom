@@ -268,3 +268,18 @@
 "Nothing in this scan has that name." = "Ništa u ovom skeniranju nema to ime.";
 "folder" = "folder";
 "Show on Map" = "Prikaži na mapi";
+/* Menu bar and notifications */
+"Open Diskbloom" = "Otvori Diskbloom";
+"Quit Diskbloom" = "Izađi iz Diskbloom-a";
+"Settings…" = "Podešavanja…";
+"Show this disk in Diskbloom" = "Prikaži ovaj disk u Diskbloom-u";
+"%@ used" = "%@ zauzeto";
+"%@ free on %@" = "%@ slobodno na disku %@";
+"Your startup disk is almost full" = "Disk za pokretanje je skoro pun";
+"Only %@ free on %@. Open Diskbloom to see what takes up space." = "Samo je %@ slobodno na disku %@. Otvori Diskbloom da vidiš šta zauzima prostor.";
+
+/* Settings */
+"Show free space in the menu bar" = "Prikaži slobodan prostor u traci menija";
+"All disks and quick actions are one click away." = "Svi diskovi i brze akcije na jedan klik.";
+"Notify when the startup disk is almost full" = "Obavesti me kad je disk za pokretanje skoro pun";
+"When less than %@ or %@ is free, whichever is smaller. macOS asks for permission before the first notification." = "Kad je slobodno manje od %@ ili %@, šta god je manje. macOS traži dozvolu pre prvog obaveštenja.";

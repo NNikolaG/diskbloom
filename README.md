@@ -20,6 +20,7 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
 - **Opens instantly**: the last scan is shown right away, then only folders that changed since are rescanned, with a list of **what grew**.
 - **Forgotten projects**: build folders and dependencies of projects you haven't touched for 6 months.
 - **Disk overview** with used / purgeable / free space and **Time Machine local snapshots**.
+- **Menu bar item** with the startup disk's free space, every disk at a glance and shortcuts to Scan Home and Smart Clean; a **notification** when the startup disk runs low. Both can be turned off in Settings (⌘,).
 - **Quick Look** (Space), **refresh one folder** (⌘R), views on ⌘1 / ⌘2 / ⌘3 / ⌘4, Smart Clean on ⌘K.
 - **CLI** (`bloom`) for the terminal, also on Linux.
 
@@ -46,6 +47,12 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
   frees the space while keeping every copy, after a byte-by-byte check.
 - **Time Machine snapshots** are often the biggest part of "purgeable" space. Removing them
   asks for your admin password.
+- **Menu bar**: free space counts purgeable space, like Finder, and refreshes every minute
+  and when a disk is mounted or ejected. Click a disk to open its overview. Hide the item
+  in **Settings** (⌘,) or by ⌘-dragging it out of the menu bar; the app keeps running.
+- **Low-space notification**: once when the startup disk has less than 10% or 20 GB free
+  (whichever is smaller), and again only after space has recovered a bit above that.
+  macOS asks for permission the first time; clicking it opens the disk overview.
 - **Hidden space**: the difference between what the volume reports as used and what the
   scan could see (system volume, snapshots, folders without permission).
 
@@ -181,9 +188,11 @@ rm -rf /Applications/Diskbloom.app
 
 Installed with Homebrew: `brew uninstall --cask diskbloom`.
 
-Diskbloom keeps no settings. Its saved scans (file names and sizes only) can be removed with:
+Diskbloom keeps two settings (menu bar item, low-space notification) and its saved scans
+(file names and sizes only). Remove them with:
 
 ```bash
+defaults delete io.github.nnikolag.diskbloom
 rm -rf ~/Library/Caches/io.github.nnikolag.diskbloom
 ```
 

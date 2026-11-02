@@ -16,6 +16,7 @@ struct MountedVolume: Identifiable {
 
     static func all() -> [MountedVolume] {
         let keys: [URLResourceKey] = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
+                                      .volumeAvailableCapacityForImportantUsageKey,
                                       .volumeIsEjectableKey, .volumeIsRemovableKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys,
                                                          options: [.skipHiddenVolumes]) ?? []
@@ -27,7 +28,9 @@ struct MountedVolume: Identifiable {
                 url: url,
                 name: values.volumeName ?? url.lastPathComponent,
                 total: total,
-                free: values.volumeAvailableCapacity ?? 0,
+                // Purgeable space counts as free, as in Finder and the menu bar.
+                free: Int(clamping: values.volumeAvailableCapacityForImportantUsage
+                    ?? Int64(values.volumeAvailableCapacity ?? 0)),
                 isEjectable: url.path != "/" && (values.volumeIsEjectable == true || values.volumeIsRemovable == true)
             )
         }

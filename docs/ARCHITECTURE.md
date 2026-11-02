@@ -75,12 +75,16 @@ crates/ffi             UniFFI objects for Swift: ScanJob, DiskTree, DupeJob, plu
 macos/Sources
   DiskbloomFFI/        generated Swift bindings (build.sh)
   DiskbloomKit/        logic without UI: Shell, CleanupMethod, SimulatorRuntimeList,
-                       TimeMachineSnapshot, Format, CandidateLabel, LaunchOptions
+                       TimeMachineSnapshot, Format, CandidateLabel, LaunchOptions,
+                       LowSpaceAlert, APFSClones
                        (tested by swift test)
   Diskbloom/
     App/               entry point, window, menu commands
     Model/             AppModel (state) and its extensions: collector, cleanup, system
-    Services/          AppKit glue: TrashMover, SystemActions, volumes
+    Services/          AppKit glue: TrashMover, SystemActions, volumes, scan cache,
+                       FSEvents history, low-space notification
+    MenuBar/           menu bar item: DiskStatus (free space, refreshed every minute), its window
+    Settings/          the Settings window and its two preferences
     Sidebar/ Overview/ Map/ Collector/ Cleaner/ LargestFiles/ Duplicates/ Types/
     Search/ Snapshots/
     Shared/            small reusable views
