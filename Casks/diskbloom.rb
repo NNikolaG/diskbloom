@@ -3,8 +3,8 @@
 #   brew install --cask nnikolag/diskbloom/diskbloom
 # `version` and `sha256` are rewritten by .github/workflows/release.yml after each release.
 cask "diskbloom" do
-  version "0.3.0"
-  sha256 "0832c5f46c15ef533897cef2a4a6ffa3df89d99b1756371ac6c012892e3ddd41"
+  version "0.4.0"
+  sha256 "bb19609b5dca8d9083e16398c2eacf2121faf83d8d78da6e941f514ab86d18ac"
 
   url "https://github.com/NNikolaG/diskbloom/releases/download/v#{version}/Diskbloom-#{version}.zip"
   name "Diskbloom"
