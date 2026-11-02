@@ -6,7 +6,7 @@
 Interactive sunburst map · Trash list · Smart Clean for developer junk<br>
 Rust scanning engine, native SwiftUI app · English and Serbian</p>
 
-> Status: early version (v0.3). Expect rough edges.
+> Status: early version (v0.4). Expect rough edges.
 
 ## Features
 
