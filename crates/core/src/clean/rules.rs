@@ -57,7 +57,7 @@ pub(super) const NAME_RULES: &[NameRule] = &[
     },
 ];
 
-/// How a [`HomeRule`] path is matched.
+/// How a [`PathRule`] path is matched.
 pub(super) enum Kind {
     /// Exactly this path.
     Exact,
@@ -65,70 +65,111 @@ pub(super) enum Kind {
     Children,
     /// Children with one of these extensions (without the dot, any case).
     ChildrenExt(&'static [&'static str]),
+    /// Child folders (not files) whose name starts with this prefix.
+    ChildDirsPrefix(&'static str),
 }
 
-/// Matches a known location relative to `$HOME`.
-pub(super) struct HomeRule {
+/// Matches a known location: relative to `$HOME` in [`HOME_RULES`], absolute in
+/// [`SYSTEM_RULES`].
+pub(super) struct PathRule {
     pub path: &'static str,
     pub kind: Kind,
     pub category: Category,
 }
 
-const fn home(path: &'static str, kind: Kind, category: Category) -> HomeRule {
-    HomeRule {
+const fn at(path: &'static str, kind: Kind, category: Category) -> PathRule {
+    PathRule {
         path,
         kind,
         category,
     }
 }
 
-/// Exact rules win over `Children` rules: `Library/Caches/Homebrew` is a package
-/// cache, every other child of `Library/Caches` is an app cache.
+/// Precedence, from strongest:
+/// 1. `Exact` rules: `Library/Caches/Homebrew` is a package cache;
+/// 2. a folder that has its own `Children` rule is never matched by its parent's:
+///    `Library/Caches/JetBrains` is not one app cache, each IDE version in it is a
+///    cache of one IDE version;
+/// 3. the parent's `Children` rule: every other child of `Library/Caches` is an
+///    app cache.
 #[rustfmt::skip]
-pub(super) const HOME_RULES: &[HomeRule] = &[
+pub(super) const HOME_RULES: &[PathRule] = &[
     // Xcode and iOS simulators
-    home("Library/Developer/Xcode/DerivedData", Kind::Exact, XcodeDerived),
-    home("Library/Developer/Xcode/iOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
-    home("Library/Developer/Xcode/watchOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
-    home("Library/Developer/Xcode/tvOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
-    home("Library/Developer/Xcode/visionOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
-    home("Library/Developer/Xcode/Archives", Kind::Children, XcodeArchives),
-    home("Library/Developer/CoreSimulator/Devices", Kind::Children, Simulators),
-    home("Library/Developer/CoreSimulator/Caches", Kind::Exact, SimulatorCache),
-    home("Library/Caches/com.apple.dt.Xcode", Kind::Exact, XcodeDerived),
+    at("Library/Developer/Xcode/DerivedData", Kind::Exact, XcodeDerived),
+    at("Library/Developer/Xcode/iOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
+    at("Library/Developer/Xcode/watchOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
+    at("Library/Developer/Xcode/tvOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
+    at("Library/Developer/Xcode/visionOS DeviceSupport", Kind::Children, XcodeDeviceSupport),
+    at("Library/Developer/Xcode/Archives", Kind::Children, XcodeArchives),
+    at("Library/Developer/CoreSimulator/Devices", Kind::Children, Simulators),
+    at("Library/Developer/CoreSimulator/Caches", Kind::Exact, SimulatorCache),
+    at("Library/Caches/com.apple.dt.Xcode", Kind::Exact, XcodeDerived),
     // Android
-    home(".android/avd", Kind::ChildrenExt(&["avd"]), AndroidEmulators),
-    home("Library/Android/sdk/system-images", Kind::Children, AndroidImages),
-    home(".android/cache", Kind::Exact, PkgCache),
+    at(".android/avd", Kind::ChildrenExt(&["avd"]), AndroidEmulators),
+    at("Library/Android/sdk/system-images", Kind::Children, AndroidImages),
+    at(".android/cache", Kind::Exact, PkgCache),
     // Virtual machines
-    home("Library/Containers/com.docker.docker/Data/vms", Kind::Exact, Vms),
-    home("Library/Containers/com.utmapp.UTM/Data/Documents", Kind::ChildrenExt(&["utm"]), Vms),
-    home("Parallels", Kind::ChildrenExt(&["pvm"]), Vms),
-    home("Virtual Machines.localized", Kind::ChildrenExt(&["vmwarevm"]), Vms),
+    at("Library/Containers/com.docker.docker/Data/vms", Kind::Exact, Vms),
+    at("Library/Containers/com.utmapp.UTM/Data/Documents", Kind::ChildrenExt(&["utm"]), Vms),
+    at("Parallels", Kind::ChildrenExt(&["pvm"]), Vms),
+    at("Virtual Machines.localized", Kind::ChildrenExt(&["vmwarevm"]), Vms),
     // Package manager caches
-    home("Library/Caches/Homebrew", Kind::Exact, PkgCache),
-    home("Library/Caches/pip", Kind::Exact, PkgCache),
-    home("Library/Caches/Yarn", Kind::Exact, PkgCache),
-    home("Library/Caches/CocoaPods", Kind::Exact, PkgCache),
-    home("Library/Caches/pnpm", Kind::Exact, PkgCache),
-    home("Library/pnpm/store", Kind::Exact, PkgCache),
-    home(".npm/_cacache", Kind::Exact, PkgCache),
-    home(".cargo/registry/cache", Kind::Exact, PkgCache),
-    home(".gradle/caches", Kind::Exact, PkgCache),
-    home(".gradle/wrapper/dists", Kind::Exact, PkgCache),
-    home(".m2/repository", Kind::Exact, PkgCache),
-    home("go/pkg/mod", Kind::Exact, PkgCache),
-    home(".nuget/packages", Kind::Exact, PkgCache),
-    home(".bun/install/cache", Kind::Exact, PkgCache),
+    at("Library/Caches/Homebrew", Kind::Exact, PkgCache),
+    at("Library/Caches/pip", Kind::Exact, PkgCache),
+    at("Library/Caches/Yarn", Kind::Exact, PkgCache),
+    at("Library/Caches/CocoaPods", Kind::Exact, PkgCache),
+    at("Library/Caches/pnpm", Kind::Exact, PkgCache),
+    at("Library/pnpm/store", Kind::Exact, PkgCache),
+    at(".npm/_cacache", Kind::Exact, PkgCache),
+    at(".cargo/registry/cache", Kind::Exact, PkgCache),
+    at(".gradle/caches", Kind::Exact, PkgCache),
+    at(".gradle/wrapper/dists", Kind::Exact, PkgCache),
+    at(".m2/repository", Kind::Exact, PkgCache),
+    at("go/pkg/mod", Kind::Exact, PkgCache),
+    at(".nuget/packages", Kind::Exact, PkgCache),
+    at(".bun/install/cache", Kind::Exact, PkgCache),
     // App caches and logs
-    home("Library/Caches", Kind::Children, AppCache),
-    home(".cache", Kind::Exact, AppCache),
-    home("Library/Logs", Kind::Exact, Logs),
+    // Node versions installed by nvm: v18.20.4, v20.11.0… Each one holds its global
+    // packages in lib/node_modules; those go with the version, never on their own.
+    at(".nvm/versions/node", Kind::ChildDirsPrefix("v"), NodeVersions),
+    // JetBrains IDEs: <Product><version> per IDE, e.g. IntelliJIdea2025.2
+    at("Library/Caches/JetBrains", Kind::Children, JetBrainsCache),
+    at("Library/Logs/JetBrains", Kind::Children, JetBrainsCache),
+    // VS Code and Cursor (Electron): only the caches and logs, never extensions,
+    // User (settings, keybindings, snippets) or workspaceStorage.
+    at("Library/Application Support/Code/Cache", Kind::Exact, EditorCache),
+    at("Library/Application Support/Code/CachedData", Kind::Exact, EditorCache),
+    at("Library/Application Support/Code/CachedExtensionVSIXs", Kind::Exact, EditorCache),
+    at("Library/Application Support/Code/Code Cache", Kind::Exact, EditorCache),
+    at("Library/Application Support/Code/GPUCache", Kind::Exact, EditorCache),
+    at("Library/Application Support/Code/logs", Kind::Exact, EditorCache),
+    at("Library/Application Support/Cursor/Cache", Kind::Exact, EditorCache),
+    at("Library/Application Support/Cursor/CachedData", Kind::Exact, EditorCache),
+    at("Library/Application Support/Cursor/Code Cache", Kind::Exact, EditorCache),
+    at("Library/Application Support/Cursor/GPUCache", Kind::Exact, EditorCache),
+    at("Library/Application Support/Cursor/logs", Kind::Exact, EditorCache),
+    // App caches and logs
+    at("Library/Caches", Kind::Children, AppCache),
+    at(".cache", Kind::Exact, AppCache),
+    // Each log folder on its own, so Library/Logs/JetBrains can have its own category.
+    at("Library/Logs", Kind::Children, Logs),
     // Worth a look before deleting
-    home("Library/Application Support/MobileSync/Backup", Kind::Children, IosBackups),
-    home("Downloads", Kind::ChildrenExt(&["dmg", "pkg", "iso", "xip"]), Installers),
-    home(".Trash", Kind::Exact, Trash),
-    home(".local/share/Trash", Kind::Exact, Trash),
+    at("Library/Application Support/MobileSync/Backup", Kind::Children, IosBackups),
+    at("Downloads", Kind::ChildrenExt(&["dmg", "pkg", "iso", "xip"]), Installers),
+    at(".Trash", Kind::Exact, Trash),
+    at(".local/share/Trash", Kind::Exact, Trash),
+];
+
+/// Absolute locations outside `$HOME`, matched like [`HOME_RULES`].
+#[rustfmt::skip]
+pub(super) const SYSTEM_RULES: &[PathRule] = &[
+    // iOS / watchOS / tvOS / visionOS simulator runtimes downloaded by Xcode 15 and
+    // later: Images/<uuid>.dmg (Xcode 15), Cryptex/Images/bundle/SimRuntimeBundle-<uuid>
+    // (Xcode 16). CoreSimulator mounts them below Volumes, which is another volume and
+    // not scanned. The app removes them with `xcrun simctl runtime delete`; the Inbox
+    // folder and images.plist next to them are not matched.
+    at("/Library/Developer/CoreSimulator/Images", Kind::ChildrenExt(&["dmg"]), SimRuntimes),
+    at("/Library/Developer/CoreSimulator/Cryptex/Images/bundle", Kind::ChildDirsPrefix("SimRuntimeBundle-"), SimRuntimes),
 ];
 
 /// Name rules (`node_modules`, `target`, `build`…) never apply below these: they hold

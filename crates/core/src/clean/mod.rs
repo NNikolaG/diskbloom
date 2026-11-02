@@ -3,9 +3,10 @@
 //! Two kinds of rules (see [`rules`]):
 //! - **name rules** apply anywhere, with a condition on neighbours or contents:
 //!   `target/` only next to a `Cargo.toml`, a virtualenv only if it has `pyvenv.cfg`;
-//! - **home rules** match known locations under `$HOME`: an exact path, every child
-//!   of a folder (each cache in `~/Library/Caches`, each simulator), or children with
-//!   an extension (`.dmg` in Downloads, `.avd` emulators).
+//! - **path rules** match known locations under `$HOME` (and a few absolute ones such
+//!   as simulator runtimes in `/Library`): an exact path, every child of a folder (each
+//!   cache in `~/Library/Caches`, each simulator), or children with an extension
+//!   (`.dmg` in Downloads, `.avd` emulators) or a name prefix (nvm's `v20.11.0`).
 //!
 //! Name rules are switched off below protected locations (installed tools, app
 //! bundles, `~/Library`), and the search never descends into `node_modules`.
@@ -19,7 +20,7 @@ pub use category::Category;
 
 use crate::tree::{NodeId, Tree};
 use crate::volume;
-use rules::{HOME_RULES, HomeRule, Kind, NAME_RULES, PROTECTED_ABS, PROTECTED_HOME};
+use rules::{HOME_RULES, Kind, NAME_RULES, PROTECTED_ABS, PROTECTED_HOME, PathRule, SYSTEM_RULES};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -52,7 +53,7 @@ impl Candidate {
 /// Rules resolved to absolute paths for one `$HOME`.
 struct Rules {
     exact: HashMap<PathBuf, Category>,
-    children: HashMap<PathBuf, &'static HomeRule>,
+    children: HashMap<PathBuf, &'static PathRule>,
     /// Roots below which name rules do not apply.
     protected: HashSet<PathBuf>,
 }
@@ -60,7 +61,8 @@ struct Rules {
 impl Rules {
     /// Every path is registered in both forms (`/Users/x` and
     /// `/System/Volumes/Data/Users/x`), because a boot disk scan reports the latter.
-    fn new(home: Option<&Path>) -> Self {
+    /// `system` is where [`SYSTEM_RULES`] start: `/`, or a test folder.
+    fn new(home: Option<&Path>, system: &Path) -> Self {
         let mut rules = Rules {
             exact: HashMap::new(),
             children: HashMap::new(),
@@ -69,23 +71,31 @@ impl Rules {
                 .flat_map(|p| volume::both_forms(PathBuf::from(p)))
                 .collect(),
         };
+        for rule in SYSTEM_RULES {
+            let relative = rule.path.trim_start_matches('/');
+            rules.add(rule, system.join(relative));
+        }
         let Some(home) = home else { return rules };
         for rule in HOME_RULES {
-            for path in volume::both_forms(home.join(rule.path)) {
-                match rule.kind {
-                    Kind::Exact => {
-                        rules.exact.insert(path, rule.category);
-                    }
-                    Kind::Children | Kind::ChildrenExt(_) => {
-                        rules.children.insert(path, rule);
-                    }
-                }
-            }
+            rules.add(rule, home.join(rule.path));
         }
         for p in PROTECTED_HOME {
             rules.protected.extend(volume::both_forms(home.join(p)));
         }
         rules
+    }
+
+    fn add(&mut self, rule: &'static PathRule, path: PathBuf) {
+        for path in volume::both_forms(path) {
+            match rule.kind {
+                Kind::Exact => {
+                    self.exact.insert(path, rule.category);
+                }
+                Kind::Children | Kind::ChildrenExt(_) | Kind::ChildDirsPrefix(_) => {
+                    self.children.insert(path, rule);
+                }
+            }
+        }
     }
 
     fn is_protected(&self, path: &Path) -> bool {
@@ -103,7 +113,12 @@ pub fn find(tree: &Tree) -> Vec<Candidate> {
 
 /// Like [`find`], with an explicit home folder.
 pub fn find_with_home(tree: &Tree, home: Option<&Path>) -> Vec<Candidate> {
-    let rules = Rules::new(home);
+    find_with_roots(tree, home, Path::new("/"))
+}
+
+/// Like [`find_with_home`], with [`SYSTEM_RULES`] below `system` instead of `/`.
+fn find_with_roots(tree: &Tree, home: Option<&Path>, system: &Path) -> Vec<Candidate> {
+    let rules = Rules::new(home, system);
     let mut walk = Walk {
         tree,
         rules: &rules,
@@ -177,12 +192,19 @@ impl Walk<'_> {
         if let Some(&category) = self.rules.exact.get(path) {
             return Some(category);
         }
+        // A folder with a `Children` rule of its own (~/Library/Caches/JetBrains) is
+        // not taken whole by its parent's rule (~/Library/Caches); the walk goes on to
+        // its children, so the more specific rule wins.
+        if self.rules.children.contains_key(path) {
+            return None;
+        }
         if let Some(rule) = self.rules.children.get(parent_path) {
             let matches = match rule.kind {
                 Kind::ChildrenExt(exts) => Path::new(&e.name)
                     .extension()
                     .and_then(|x| x.to_str())
                     .is_some_and(|x| exts.iter().any(|want| want.eq_ignore_ascii_case(x))),
+                Kind::ChildDirsPrefix(prefix) => e.is_dir && e.name.starts_with(prefix),
                 Kind::Children | Kind::Exact => true,
             };
             if matches {
@@ -234,8 +256,16 @@ fn is_app_bundle(name: &str) -> bool {
 /// Permanently deletes a candidate (used by the CLI; the app moves to the Trash).
 ///
 /// # Errors
-/// Fails if the path cannot be read or removed.
+/// Fails if the path cannot be read or removed, and for categories that only their
+/// own tool may remove ([`Category::needs_tool`]).
 pub fn delete(c: &Candidate) -> io::Result<()> {
+    if c.category.needs_tool() {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "simulator runtimes are removed with `xcrun simctl runtime delete` \
+             or in Xcode → Settings → Platforms",
+        ));
+    }
     // Never delete through a symlink: lstat, and remove_dir_all does not follow links.
     let m = std::fs::symlink_metadata(&c.path)?;
     if m.is_dir() {

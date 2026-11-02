@@ -70,8 +70,9 @@ crates/ffi             UniFFI objects for Swift: ScanJob, DiskTree, DupeJob, plu
 
 macos/Sources
   DiskbloomFFI/        generated Swift bindings (build.sh)
-  DiskbloomKit/        logic without UI: Shell, CleanupMethod, TimeMachineSnapshot,
-                       Format, CandidateLabel, LaunchOptions (tested by swift test)
+  DiskbloomKit/        logic without UI: Shell, CleanupMethod, SimulatorRuntimeList,
+                       TimeMachineSnapshot, Format, CandidateLabel, LaunchOptions
+                       (tested by swift test)
   Diskbloom/
     App/               entry point, window, menu commands
     Model/             AppModel (state) and its extensions: collector, cleanup, system
@@ -102,17 +103,22 @@ Rules live in `crates/core/src/clean/rules.rs`:
 - **Name rules** match a folder anywhere, with a condition: `target/` only next to a
   `Cargo.toml`, `node_modules/` only next to a `package.json`, a virtualenv only if it
   contains `pyvenv.cfg`.
-- **Home rules** match known places under `$HOME`: an exact path (Xcode DerivedData),
-  every child of a folder (each cache in `~/Library/Caches`, each simulator), or
-  children with an extension (`.dmg` in Downloads).
+- **Path rules** match known places under `$HOME` (`HOME_RULES`) or absolute ones
+  (`SYSTEM_RULES`, simulator runtimes in `/Library`): an exact path (Xcode
+  DerivedData), every child of a folder (each cache in `~/Library/Caches`, each
+  simulator), children with an extension (`.dmg` in Downloads) or child folders with a
+  name prefix (nvm's `v20.11.0`). An exact rule wins; a folder with its own children
+  rule (`~/Library/Caches/JetBrains`) is never taken whole by its parent's rule.
 
 Name rules never apply below protected roots (`~/Library`, `/Applications`, version
 managers such as `~/.nvm`, editor folders such as `~/.vscode`), inside `.app` bundles,
 or inside `node_modules`, so global packages and editor extensions are never offered.
 Each category is *safe* (regenerates by itself, preselected) or *review* (emulators,
-VMs, backups, installers: listed, never preselected).
+VMs, simulator runtimes, Node versions, backups, installers: listed, never preselected).
 
 The app removes some categories with their own tool (`DiskbloomKit.CleanupMethod`):
-simulators with `xcrun simctl delete <UDID>` (only real UUIDs are accepted), Android
+simulators with `xcrun simctl delete <UDID>` (only real UUIDs are accepted), simulator
+runtimes with `xcrun simctl runtime delete <identifier>` (the identifier comes from
+`simctl runtime list -j`, matched by the image path; `clean::delete` refuses them), Android
 emulators together with their `.ini`, the Docker disk image never (the app offers
 `docker system prune` instead), and the Trash by emptying it through Finder.

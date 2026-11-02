@@ -16,6 +16,24 @@ struct CleanupMethodTests {
         #expect(method == .androidEmulator(ini: "/Users/me/.android/avd/Pixel_8.ini"))
     }
 
+    @Test func simulatorRuntimesNeverGoToTheTrash() {
+        let image = "/Library/Developer/CoreSimulator/Images/EB213AC6-D0C7-494C-B960-A0888D020599.dmg"
+        #expect(CleanupMethod.resolve(category: "sim-runtimes", path: image) == .simulatorRuntime(path: image))
+        // anywhere else the category is not trusted: skipped, not trashed
+        #expect(CleanupMethod.resolve(category: "sim-runtimes", path: "/Users/me/Downloads/iOS.dmg") == .skip)
+        #expect(CleanupMethod.resolve(category: "sim-runtimes", path: "/Library/Developer/CoreSimulator/Images") == .skip)
+    }
+
+    @Test func newCacheCategoriesGoToTheTrash() {
+        for (category, path) in [
+            ("jetbrains-cache", "/Users/me/Library/Caches/JetBrains/IntelliJIdea2025.2"),
+            ("editor-cache", "/Users/me/Library/Application Support/Code/CachedData"),
+            ("node-versions", "/Users/me/.nvm/versions/node/v18.20.4"),
+        ] {
+            #expect(CleanupMethod.resolve(category: category, path: path) == .trash)
+        }
+    }
+
     @Test func dockerDiskAndTrashAreSpecial() {
         let docker = "/Users/me/Library/Containers/com.docker.docker/Data/vms"
         #expect(CleanupMethod.resolve(category: "vms", path: docker) == .docker)

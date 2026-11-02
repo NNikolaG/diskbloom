@@ -35,9 +35,9 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
 - **Smart Clean** rules are context-aware: `target/` is only flagged next to a `Cargo.toml`.
   Regenerable items are preselected; emulators, VMs and backups are only listed for review.
   See [clean categories](#clean-categories).
-- **Proper cleanup for developer tools**: iOS simulators are removed with `xcrun simctl`,
-  Android emulators together with their `.ini`, and the Docker disk is never deleted;
-  Diskbloom offers `docker system prune` instead.
+- **Proper cleanup for developer tools**: iOS simulators and simulator runtimes are
+  removed with `xcrun simctl`, Android emulators together with their `.ini`, and the
+  Docker disk is never deleted; Diskbloom offers `docker system prune` instead.
 - **Largest files**: the 300 biggest files, filterable to "not opened in 6 months / a year".
 - **Duplicates**: "Keep one" queues the other copies for the Trash.
 - **Time Machine snapshots** are often the biggest part of "purgeable" space. Removing them
@@ -210,7 +210,8 @@ category with `-c`.
 <summary><b>What Smart Clean looks for, and what it never touches</b></summary>
 
 **Safe** categories regenerate on their own and are preselected. **Review** categories
-(emulators, VMs, backups, installers) are listed but never preselected.
+(emulators, VMs, simulator runtimes, Node versions, backups, installers) are listed but
+never preselected.
 
 Project rules (`node_modules`, `target/`, `build/`, `.venv`…) only apply to your own
 projects. They never apply inside `node_modules` itself, inside `.app` bundles, in
@@ -233,12 +234,16 @@ extensions are therefore never offered for removal.
 | `xcode-archives` | each folder in Xcode Archives | review |
 | `simulators` | each iOS simulator device in `CoreSimulator/Devices` | review |
 | `simulator-cache` | `CoreSimulator/Caches` | safe |
+| `sim-runtimes` | each simulator runtime image Xcode 15+ downloaded to `/Library/Developer/CoreSimulator` (`Images/*.dmg`, `Cryptex/Images/bundle/SimRuntimeBundle-*`); removed with `xcrun simctl runtime delete` | review |
 | `android-emulators` | each `~/.android/avd/*.avd` | review |
 | `android-images` | each Android SDK system image | review |
 | `vms` | Docker Desktop disk, UTM, Parallels and VMware VMs | review |
 | `pkg-cache` | Homebrew, pip, Yarn, pnpm, CocoaPods, npm, Cargo, Gradle, Maven, Go, NuGet, Bun caches | safe |
+| `node-versions` | each Node version installed by nvm (`~/.nvm/versions/node/v*`), with its global packages | review |
+| `jetbrains-cache` | each IDE version in `~/Library/Caches/JetBrains` and `~/Library/Logs/JetBrains` | safe |
+| `editor-cache` | VS Code and Cursor `Cache`, `CachedData`, `Code Cache`, `GPUCache`, `logs` (and VS Code's `CachedExtensionVSIXs`) in `~/Library/Application Support`; never extensions, `User` settings or `workspaceStorage` | safe |
 | `app-cache` | each folder in `~/Library/Caches`, and `~/.cache` | safe |
-| `logs` | `~/Library/Logs` | safe |
+| `logs` | each item in `~/Library/Logs` | safe |
 | `ios-backups` | each iPhone/iPad backup in MobileSync | review |
 | `installers` | `.dmg`, `.pkg`, `.iso`, `.xip` in `~/Downloads` | review |
 | `trash` | `~/.Trash`, `~/.local/share/Trash` | review |

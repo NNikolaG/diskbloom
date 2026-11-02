@@ -18,10 +18,14 @@ pub enum Category {
     XcodeArchives,
     Simulators,
     SimulatorCache,
+    SimRuntimes,
     AndroidEmulators,
     AndroidImages,
     Vms,
     PkgCache,
+    NodeVersions,
+    JetBrainsCache,
+    EditorCache,
     AppCache,
     Logs,
     IosBackups,
@@ -31,7 +35,7 @@ pub enum Category {
 
 impl Category {
     /// Every category, in display order.
-    pub const ALL: [Category; 22] = [
+    pub const ALL: [Category; 26] = [
         Self::RustBuild,
         Self::NodeDeps,
         Self::JsBuild,
@@ -45,10 +49,14 @@ impl Category {
         Self::XcodeArchives,
         Self::Simulators,
         Self::SimulatorCache,
+        Self::SimRuntimes,
         Self::AndroidEmulators,
         Self::AndroidImages,
         Self::Vms,
         Self::PkgCache,
+        Self::NodeVersions,
+        Self::JetBrainsCache,
+        Self::EditorCache,
         Self::AppCache,
         Self::Logs,
         Self::IosBackups,
@@ -72,10 +80,14 @@ impl Category {
             Self::XcodeArchives => "xcode-archives",
             Self::Simulators => "simulators",
             Self::SimulatorCache => "simulator-cache",
+            Self::SimRuntimes => "sim-runtimes",
             Self::AndroidEmulators => "android-emulators",
             Self::AndroidImages => "android-images",
             Self::Vms => "vms",
             Self::PkgCache => "pkg-cache",
+            Self::NodeVersions => "node-versions",
+            Self::JetBrainsCache => "jetbrains-cache",
+            Self::EditorCache => "editor-cache",
             Self::AppCache => "app-cache",
             Self::Logs => "logs",
             Self::IosBackups => "ios-backups",
@@ -106,20 +118,30 @@ impl Category {
     }
 
     /// Safe categories regenerate on their own (builds, caches) and may be removed
-    /// without looking. The others (emulators, VMs, backups, installers) need review.
+    /// without looking. The others (emulators, VMs, simulator runtimes, Node versions,
+    /// backups, installers) need review.
     pub const fn is_safe(self) -> bool {
         !matches!(
             self,
             Self::PythonVenv
                 | Self::XcodeArchives
                 | Self::Simulators
+                | Self::SimRuntimes
                 | Self::AndroidEmulators
                 | Self::AndroidImages
                 | Self::Vms
+                | Self::NodeVersions
                 | Self::IosBackups
                 | Self::Installers
                 | Self::Trash
         )
+    }
+
+    /// Must be removed with its own tool, never by deleting files: simulator runtimes
+    /// are mounted disk images registered with Xcode's simulator service (`xcrun simctl runtime
+    /// delete`). [`crate::clean::delete`] refuses these.
+    pub const fn needs_tool(self) -> bool {
+        matches!(self, Self::SimRuntimes)
     }
 }
 
@@ -143,5 +165,26 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), Category::ALL.len());
         assert_eq!(Category::from_id("nope"), None);
+    }
+
+    #[test]
+    fn installed_tools_need_review() {
+        for c in [Category::NodeVersions, Category::SimRuntimes] {
+            assert!(!c.is_safe(), "{c} must never be preselected");
+        }
+        for c in [Category::JetBrainsCache, Category::EditorCache] {
+            assert!(c.is_safe(), "{c} regenerates by itself");
+        }
+    }
+
+    /// Simulator runtimes are disk images that Xcode manages: only
+    /// `xcrun simctl runtime delete` may remove them.
+    #[test]
+    fn only_sim_runtimes_need_their_tool() {
+        let tool: Vec<_> = Category::ALL
+            .into_iter()
+            .filter(|c| c.needs_tool())
+            .collect();
+        assert_eq!(tool, vec![Category::SimRuntimes]);
     }
 }

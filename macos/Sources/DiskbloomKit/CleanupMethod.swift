@@ -13,6 +13,10 @@ public enum CleanupMethod: Equatable, Sendable {
     case docker
     /// `~/.Trash` is emptied, not moved to the Trash.
     case emptyTrash
+    /// A simulator runtime image, removed with `xcrun simctl runtime delete`. Its
+    /// identifier is looked up with `SimulatorRuntimeList` right before deleting;
+    /// never moved to the Trash.
+    case simulatorRuntime(path: String)
     /// Cannot be removed safely (a simulator folder that is not a device UUID).
     case skip
 
@@ -27,6 +31,8 @@ public enum CleanupMethod: Equatable, Sendable {
             return .androidEmulator(ini: url.deletingPathExtension().appendingPathExtension("ini").path)
         case "trash":
             return .emptyTrash
+        case "sim-runtimes":
+            return SimulatorRuntimeList.isImageLocation(path) ? .simulatorRuntime(path: path) : .skip
         default:
             return path.contains("/com.docker.docker/") ? .docker : .trash
         }
