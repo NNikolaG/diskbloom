@@ -45,7 +45,7 @@ fn diff(a: &Node, b: &Node, path: &str, sizes: Sizes, root: bool, out: &mut Vec<
         || (check_size && a.size != b.size)
     {
         out.push(format!(
-            "{path}: portable ({}, {} B, {} files, dir {}, newest {}) vs bulk ({}, {} B, {} files, dir {}, newest {})",
+            "{path}: ({}, {} B, {} files, dir {}, newest {}) vs ({}, {} B, {} files, dir {}, newest {})",
             a.name, a.size, a.files, a.is_dir, a.newest, b.name, b.size, b.files, b.is_dir, b.newest
         ));
     }
