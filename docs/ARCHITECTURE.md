@@ -32,6 +32,7 @@ made the way they were.
 | Problem | Solution |
 |---|---|
 | Scan speed | `rayon` walks folders in parallel; SSDs handle many metadata requests at once well |
+| Metadata per entry | on macOS `getattrlistbulk(2)` returns name, type, allocation, links, inode, device and mtime for many entries per call; elsewhere (and where it is unsupported) `readdir` + one `fstatat` per entry. `DISKBLOOM_SCAN_BULK=0` forces the portable path |
 | Real size | allocated blocks (`st_blocks * 512`), not logical length, so sparse and compressed files are not overcounted |
 | Hard links | counted once: a `(dev, ino)` set for files with `nlink > 1` |
 | Mount points | the scan stays on the root's volume (`st_dev`); `--cross-fs` in the CLI turns that off |
@@ -62,6 +63,7 @@ made the way they were.
 ```
 crates/core            diskbloom-core (library, no I/O besides scanning and hashing)
   scan.rs              Scanner, Node
+  scan/bulk_macos.rs   getattrlistbulk folder reader (the only `unsafe` in the workspace)
   tree.rs              Tree (arena), remove, replace_subtree, largest_files
   tree/layout.rs       sunburst geometry
   tree/search.rs       find by name (case- and diacritic-insensitive)

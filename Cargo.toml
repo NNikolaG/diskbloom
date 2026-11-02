@@ -13,7 +13,8 @@ repository = "https://github.com/NNikolaG/diskbloom"
 diskbloom-core = { path = "crates/core" }
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# Denied everywhere; only `crates/core/src/scan/bulk_macos.rs` (one system call) allows it.
+unsafe_code = "deny"
 missing_docs = "warn"
 
 [workspace.lints.clippy]

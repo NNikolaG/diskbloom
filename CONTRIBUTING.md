@@ -22,7 +22,9 @@ Command Line Tools.
 
 - Clippy's pedantic group is on for the whole workspace (see `Cargo.toml`); fix
   warnings rather than silencing them. When an `allow` is right, say why in a comment.
-- No `unsafe` (forbidden by the workspace lints), no `unwrap`/`expect` outside tests.
+- No `unsafe` (denied by the workspace lints; the one exception is the
+  `getattrlistbulk` call in `crates/core/src/scan/bulk_macos.rs`), no `unwrap`/`expect`
+  outside tests.
 - Public items have doc comments; fallible functions document `# Errors`.
 - New Smart Clean targets go in `crates/core/src/clean/rules.rs`. A new category also
   needs an entry in `Category` (`clean/category.rs`), in `CategoryInfo` on the Swift
