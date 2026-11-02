@@ -56,7 +56,30 @@ right-click it → **Open** → **Open**, or run:
 xattr -dr com.apple.quarantine /Applications/Diskbloom.app
 ```
 
+**Homebrew:** this repository is its own tap.
+
+```bash
+brew tap nnikolag/diskbloom https://github.com/NNikolaG/diskbloom
+brew install --cask nnikolag/diskbloom/diskbloom
+```
+
 Then give it **Full Disk Access** (see below) so it can see the whole disk.
+
+<details>
+<summary><b>More about the Homebrew cask</b></summary>
+
+- The full name `nnikolag/diskbloom/diskbloom` matters: Homebrew 6 and newer only load
+  casks from taps you trust, and installing by full name trusts this one cask. To use the
+  short name, run `brew trust --cask nnikolag/diskbloom/diskbloom` first.
+- The app is not notarized, so the cask removes the `com.apple.quarantine` flag before it
+  moves Diskbloom to Applications. That is what the manual `xattr` command above does too;
+  only install it if you trust this repository's release builds.
+- The cask lives in [`Casks/diskbloom.rb`](Casks/diskbloom.rb). The release workflow
+  updates its version and SHA-256 after each release.
+- `brew uninstall --cask diskbloom` removes the app; add `--zap` to also remove the
+  preferences and saved window state macOS keeps for it.
+
+</details>
 
 <details>
 <summary><b>Build from source</b> (Intel Macs, or the latest code)</summary>
@@ -90,6 +113,12 @@ Requirements: macOS 13 Ventura or newer, Apple Silicon or Intel.
 
 <details>
 <summary><b>Updating</b></summary>
+
+With Homebrew:
+
+```bash
+brew upgrade --cask diskbloom
+```
 
 With a release: download the new DMG and drag Diskbloom to Applications again; macOS asks
 to replace the old version. From source, you never need to delete the old version by hand:
@@ -143,6 +172,8 @@ DISKBLOOM_SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)" ./macos/bu
 ```bash
 rm -rf /Applications/Diskbloom.app
 ```
+
+Installed with Homebrew: `brew uninstall --cask diskbloom`.
 
 Diskbloom keeps no settings or caches of its own.
 
@@ -237,6 +268,9 @@ release (free for public repositories):
 ```bash
 git tag v0.3.0 && git push origin v0.3.0
 ```
+
+The same workflow then commits the new version and SHA-256 to `Casks/diskbloom.rb` on
+`main`, so `brew upgrade` picks up the release.
 
 </details>
 
