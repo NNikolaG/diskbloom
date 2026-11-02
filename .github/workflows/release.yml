@@ -1,7 +1,8 @@
 name: Release
 
 # Runs on a "v*" tag (git tag v0.2.0 && git push origin v0.2.0).
-# Builds Diskbloom.dmg for Apple Silicon and publishes a GitHub Release.
+# Builds Diskbloom.dmg for Apple Silicon and publishes a GitHub Release, then points the
+# Homebrew cask (Casks/diskbloom.rb on main) at the new zip.
 # Free for public repositories; the app is not notarized (no Apple Developer account).
 
 on:
@@ -58,4 +59,84 @@ jobs:
                ```
             3. For a complete scan, allow **Full Disk Access** in System Settings → Privacy & Security.
 
+            Or with Homebrew (the cask removes the quarantine flag for you):
+            ```
+            brew tap nnikolag/diskbloom https://github.com/NNikolaG/diskbloom
+            brew install --cask nnikolag/diskbloom/diskbloom
+            ```
+
             Works on macOS 13 Ventura or newer, Macs with Apple Silicon (M1 or newer).
+
+  # Points Casks/diskbloom.rb at the zip that was just published and commits it to main.
+  # The push uses GITHUB_TOKEN, and GitHub does not start workflows for such pushes, so this
+  # cannot loop; this workflow only runs on tags and releases anyway.
+  cask:
+    name: Update Homebrew cask
+    needs: dmg
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Update Casks/diskbloom.rb
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          CASK=Casks/diskbloom.rb
+          VERSION="${TAG#v}"
+
+          # Only plain x.y.z releases go to Homebrew; skip pre-releases such as v0.4.0-beta.1.
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag $TAG is not a plain x.y.z version, leaving the cask alone."; exit 0
+          fi
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.prerelease')" = "true" ]; then
+            echo "$TAG is marked as a pre-release, leaving the cask alone."; exit 0
+          fi
+
+          if [ ! -f "$CASK" ]; then echo "$CASK is not on main yet, nothing to update."; exit 0; fi
+
+          # Never move the cask back to an older version (e.g. a late patch release of an old line).
+          CURRENT="$(sed -n -E 's/^  version "([^"]+)"$/\1/p' "$CASK")"
+          if [ -z "$CURRENT" ]; then echo "No version line found in $CASK" >&2; exit 1; fi
+          if [ "$(printf '%s\n%s\n' "$CURRENT" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]; then
+            echo "Cask is at $CURRENT, newer than $VERSION; leaving it alone."; exit 0
+          fi
+
+          # Hash the asset as published (not the local build), and cross-check SHA256SUMS.txt.
+          DL="$RUNNER_TEMP/release"
+          ZIP="Diskbloom-$VERSION.zip"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$DL" --clobber \
+            --pattern "$ZIP" --pattern SHA256SUMS.txt
+          SHA="$(sha256sum "$DL/$ZIP" | cut -d ' ' -f 1)"
+          LISTED="$(awk -v f="$ZIP" '$2 ~ ("(^|/)" f "$") { print $1 }' "$DL/SHA256SUMS.txt")"
+          if [ "$SHA" != "$LISTED" ]; then
+            echo "SHA-256 of $ZIP ($SHA) does not match SHA256SUMS.txt (${LISTED:-missing})" >&2; exit 1
+          fi
+
+          sed -i -E \
+            -e "s/^  version \"[^\"]+\"$/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \"[0-9a-f]{64}\"$/  sha256 \"$SHA\"/" \
+            "$CASK"
+          grep -qx "  version \"$VERSION\"" "$CASK"
+          grep -qx "  sha256 \"$SHA\"" "$CASK"
+          ruby -c "$CASK"
+
+          if git diff --quiet -- "$CASK"; then
+            echo "Cask already points at $VERSION ($SHA)."; exit 0
+          fi
+          git diff -- "$CASK"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Homebrew cask: Diskbloom $VERSION" -- "$CASK"
+          # main may have moved since checkout; rebase and retry a few times.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push failed (attempt $attempt), rebasing on origin/main"
+            sleep $((attempt * 5))
+            git pull --rebase origin main
+          done
+          echo "Could not push the cask update to main" >&2
+          exit 1
