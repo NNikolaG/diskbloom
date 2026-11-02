@@ -171,7 +171,7 @@ struct DuplicatesView: View {
         cloning = true
         defer { cloning = false }
         let failures = await Task.detached(priority: .userInitiated) { () -> [String] in
-            files.dropFirst().compactMap { copy in
+            files.dropFirst().compactMap { copy -> String? in
                 do {
                     try APFSClones.replaceWithClone(original: original.path, duplicate: copy.path)
                     return nil
