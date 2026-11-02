@@ -6,8 +6,19 @@
 //! before descending, so open file descriptors do not grow with depth. Work is spread
 //! over the rayon pool. Sizes are *allocated* sizes (`st_blocks * 512`), which is what
 //! deleting frees.
+//!
+//! On macOS a folder is read with `getattrlistbulk(2)` instead (see `bulk_macos`), which
+//! returns the same attributes for many entries per system call; where that fails (file
+//! systems without it) the folder is read the portable way above.
+
+#[cfg(target_os = "macos")]
+mod bulk_macos;
+#[cfg(test)]
+#[cfg(target_os = "macos")]
+mod bulk_tests;
 
 use rayon::prelude::*;
+use rustix::fd::AsFd;
 use rustix::fs::{AtFlags, Dir, FileType, Mode, OFlags, Stat};
 use std::collections::HashSet;
 use std::ffi::{CString, OsStr};
@@ -101,6 +112,12 @@ pub struct Scanner {
     root: PathBuf,
     root_dev: u64,
     cross_fs: bool,
+    /// Read folders with `getattrlistbulk` (macOS only, see `bulk_enabled`).
+    #[cfg_attr(
+        not(target_os = "macos"),
+        expect(dead_code, reason = "only macOS has a bulk path")
+    )]
+    bulk: bool,
     seen_inodes: Mutex<HashSet<(u64, u64)>>,
     /// Finished top-level folders and files, trimmed for previews (see `Scanner::partial`).
     finished: Mutex<Vec<Node>>,
@@ -176,6 +193,16 @@ fn scan_pool() -> Option<&'static rayon::ThreadPool> {
     .as_ref()
 }
 
+/// Whether macOS folders are read with `getattrlistbulk`. `DISKBLOOM_SCAN_BULK=0` turns
+/// it off, to benchmark against the portable path.
+fn bulk_enabled() -> bool {
+    static BULK: OnceLock<bool> = OnceLock::new();
+    *BULK.get_or_init(|| {
+        cfg!(target_os = "macos")
+            && std::env::var_os("DISKBLOOM_SCAN_BULK").is_none_or(|v| v != "0")
+    })
+}
+
 /// Entries below this count are stat-ed on one thread; splitting them costs more than it saves.
 const PARALLEL_STAT_MIN: usize = 64;
 
@@ -186,12 +213,16 @@ impl Scanner {
     /// # Errors
     /// Fails if `root` cannot be read.
     pub fn new(root: impl Into<PathBuf>, cross_fs: bool) -> io::Result<Self> {
-        let root = root.into();
+        Self::with_bulk(root.into(), cross_fs, bulk_enabled())
+    }
+
+    fn with_bulk(root: PathBuf, cross_fs: bool, bulk: bool) -> io::Result<Self> {
         let m = fs::symlink_metadata(&root)?;
         Ok(Self {
             root,
             root_dev: m.dev(),
             cross_fs,
+            bulk,
             seen_inodes: Mutex::new(HashSet::new()),
             finished: Mutex::new(Vec::new()),
             errors: AtomicU64::new(0),
@@ -283,7 +314,42 @@ impl Scanner {
     /// is closed when this returns.
     fn read_dir(&self, path: &Path) -> io::Result<Vec<(CString, Info)>> {
         let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
-        let mut dir = Dir::new(rustix::fs::open(path, flags, Mode::empty())?)?;
+        let fd = rustix::fs::open(path, flags, Mode::empty())?;
+        #[cfg(target_os = "macos")]
+        if self.bulk {
+            use std::os::fd::AsFd;
+            if let Ok((entries, unnamed)) = bulk_macos::read(fd.as_fd()) {
+                self.errors.fetch_add(unnamed, Ordering::Relaxed);
+                return Ok(entries
+                    .into_iter()
+                    .filter_map(|e| match e.info {
+                        Some(info) => Some((e.name, info)),
+                        None => self.stat_at(&fd, e.name),
+                    })
+                    .collect());
+            }
+            // Not supported here, or a malformed reply: read it the portable way, from
+            // the start.
+            let mut dir = Dir::new(fd)?;
+            dir.rewind();
+            return self.read_dir_portable(dir);
+        }
+        self.read_dir_portable(Dir::new(fd)?)
+    }
+
+    /// `fstatat` of `name` in the open folder `fd`; a failure is counted as an error.
+    fn stat_at(&self, fd: impl AsFd, name: CString) -> Option<(CString, Info)> {
+        let st = rustix::fs::statat(fd, name.as_c_str(), AtFlags::SYMLINK_NOFOLLOW);
+        if let Ok(st) = st {
+            Some((name, Info::from(&st)))
+        } else {
+            self.count_error();
+            None
+        }
+    }
+
+    /// `readdir`, then one `fstatat` per entry (in parallel for large folders).
+    fn read_dir_portable(&self, mut dir: Dir) -> io::Result<Vec<(CString, Info)>> {
         let mut names = Vec::new();
         for entry in dir.by_ref() {
             match entry {
@@ -297,15 +363,7 @@ impl Scanner {
             }
         }
         let fd = dir.fd()?;
-        let stat = |name: CString| {
-            let st = rustix::fs::statat(fd, name.as_c_str(), AtFlags::SYMLINK_NOFOLLOW);
-            if let Ok(st) = st {
-                Some((name, Info::from(&st)))
-            } else {
-                self.count_error();
-                None
-            }
-        };
+        let stat = |name: CString| self.stat_at(fd, name);
         Ok(if names.len() < PARALLEL_STAT_MIN {
             names.into_iter().filter_map(stat).collect()
         } else {
