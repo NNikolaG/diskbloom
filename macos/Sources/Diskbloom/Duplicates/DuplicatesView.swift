@@ -8,6 +8,11 @@ struct DuplicatesView: View {
     @State private var job: DupeJob?
     @State private var progress: (done: UInt64, total: UInt64) = (0, 0)
     @State private var minSize: UInt64 = 1_000_000
+    /// Bytes each group would really free, accounting for APFS clones (keyed by the
+    /// group's first file id). Missing while measuring or when the volume can't tell.
+    @State private var reclaimable: [UInt32: UInt64] = [:]
+    @State private var cloneTarget: DupGroupInfo?
+    @State private var cloning = false
 
     private static let sizes: [UInt64] = [100_000, 1_000_000, 10_000_000, 100_000_000]
 
@@ -69,7 +74,7 @@ struct DuplicatesView: View {
 
     private var results: some View {
         let gs = groups
-        let wasted = gs.reduce(UInt64(0)) { $0 + $1.wasted }
+        let wasted = gs.reduce(UInt64(0)) { $0 + reclaim($1) }
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -91,9 +96,19 @@ struct DuplicatesView: View {
                     }
                     .padding(12)
                 }
-                Text("Copies made with Finder's Duplicate on APFS can share disk space, so deleting them may free less than shown.")
+                Text("Sizes account for APFS clones: copies that already share disk space are not counted.")
                     .font(.caption).foregroundStyle(.secondary).padding(10)
             }
+        }
+        .task(id: model.dupeGroups?.count) { await measureClones() }
+        .confirmationDialog(
+            "Replace \(Format.count((cloneTarget?.files.count ?? 1) - 1)) copies with clones?",
+            isPresented: Binding(get: { cloneTarget != nil }, set: { if !$0 { cloneTarget = nil } }),
+            presenting: cloneTarget
+        ) { target in
+            Button("Replace") { Task { await replaceWithClones(target) } }
+        } message: { _ in
+            Text("Every copy stays where it is, with its own name and dates, but the contents are stored only once. Editing one copy later does not change the others.")
         }
     }
 
@@ -103,7 +118,15 @@ struct DuplicatesView: View {
                 Text("\(Format.count(g.files.count)) copies · \(Format.bytes(g.size)) each")
                     .font(.headline)
                 Spacer()
-                Text("\(Format.bytes(g.wasted)) wasted").foregroundStyle(.secondary).monospacedDigit()
+                if reclaim(g) == 0 {
+                    Label("Already share disk space (APFS clones)", systemImage: "checkmark.circle")
+                        .foregroundStyle(.green)
+                } else {
+                    Text("\(Format.bytes(reclaim(g))) wasted").foregroundStyle(.secondary).monospacedDigit()
+                    Button("Replace with clones…") { cloneTarget = g }
+                        .disabled(cloning)
+                        .help("Keep all copies but store their contents once. Frees \(Format.bytes(reclaim(g))) without deleting anything.")
+                }
                 Button("Keep one") { keepOne(g) }
                     .help("Keep the first copy and add the others to the Trash list")
             }
@@ -116,8 +139,61 @@ struct DuplicatesView: View {
 
     /// Keeps the copy with the shortest path (usually the original) and queues the others.
     private func keepOne(_ g: DupGroupInfo) {
-        let sorted = g.files.sorted { ($0.path.count, $0.path) < ($1.path.count, $1.path) }
-        for f in sorted.dropFirst() where !model.isCollected(f.id) { model.collect(f.id) }
+        for f in Self.byOriginality(g.files).dropFirst() where !model.isCollected(f.id) { model.collect(f.id) }
+    }
+
+    /// Shortest path first: usually the original.
+    private static func byOriginality(_ files: [FileInfo]) -> [FileInfo] {
+        files.sorted { ($0.path.count, $0.path) < ($1.path.count, $1.path) }
+    }
+
+    private func reclaim(_ g: DupGroupInfo) -> UInt64 {
+        g.files.first.flatMap { reclaimable[$0.id] } ?? g.wasted
+    }
+
+    /// Asks APFS how much of each copy is really its own.
+    private func measureClones() async {
+        let all = model.dupeGroups ?? []
+        reclaimable = await Task.detached(priority: .utility) {
+            var result: [UInt32: UInt64] = [:]
+            for g in all {
+                guard let first = g.files.first else { continue }
+                result[first.id] = APFSClones.reclaimable(g.files.map(\.path))
+            }
+            return result
+        }.value
+    }
+
+    /// Turns every copy except the original into a clone of it.
+    private func replaceWithClones(_ g: DupGroupInfo) async {
+        let files = Self.byOriginality(g.files)
+        guard let original = files.first else { return }
+        cloning = true
+        defer { cloning = false }
+        let failures = await Task.detached(priority: .userInitiated) { () -> [String] in
+            files.dropFirst().compactMap { copy in
+                do {
+                    try APFSClones.replaceWithClone(original: original.path, duplicate: copy.path)
+                    return nil
+                } catch {
+                    return "\(copy.path): \(Self.describe(error))"
+                }
+            }
+        }.value
+        if !failures.isEmpty {
+            model.alert = String(localized: "Some copies could not be replaced with clones:") + "\n" + failures.joined(separator: "\n")
+        }
+        await measureClones()
+    }
+
+    nonisolated private static func describe(_ error: APFSClones.ReplaceError) -> String {
+        switch error {
+        case .notRegularFiles: String(localized: "not a regular file")
+        case .differentVolumes: String(localized: "on a different disk")
+        case .hardLinked: String(localized: "has other hard links")
+        case .contentsDiffer: String(localized: "contents changed since the search")
+        case .system(let message): message
+        }
     }
 
     private func run() {

@@ -106,6 +106,7 @@ jobs:
           head -c 30000000 /dev/urandom > ~/dupes/a/video.mov
           cp ~/dupes/a/video.mov ~/dupes/b/video-copy.mov
           cat ~/dupes/a/video.mov > ~/dupes/video-backup.mov
+          cp -c ~/dupes/a/video.mov ~/dupes/video-clone.mov   # APFS clone: shares space
           open --env DISKBLOOM_SCAN="$HOME" --env DISKBLOOM_MODE=largest "$APP"
           sleep 50
           pgrep -x Diskbloom

@@ -39,7 +39,9 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
   removed with `xcrun simctl`, Android emulators together with their `.ini`, and the
   Docker disk is never deleted; Diskbloom offers `docker system prune` instead.
 - **Largest files**: the 300 biggest files, filterable to "not opened in 6 months / a year".
-- **Duplicates**: "Keep one" queues the other copies for the Trash.
+- **Duplicates**: "Keep one" queues the other copies for the Trash. Sizes account for APFS
+  clones (copies that already share space are not counted), and **Replace with clones**
+  frees the space while keeping every copy, after a byte-by-byte check.
 - **Time Machine snapshots** are often the biggest part of "purgeable" space. Removing them
   asks for your admin password.
 - **Hidden space**: the difference between what the volume reports as used and what the

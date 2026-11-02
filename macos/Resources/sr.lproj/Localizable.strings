@@ -202,7 +202,6 @@
 "Search again" = "Traži ponovo";
 "No duplicates" = "Nema duplikata";
 "Every file here is unique." = "Svaki fajl je jedinstven.";
-"Copies made with Finder's Duplicate on APFS can share disk space, so deleting them may free less than shown." = "Kopije napravljene Finder-ovim Duplicate na APFS-u mogu da dele prostor, pa brisanje može osloboditi manje nego što piše.";
 "%@ copies · %@ each" = "%@ kopije · po %@";
 "%@ wasted" = "%@ viška";
 "Keep one" = "Zadrži jednu";
@@ -228,3 +227,17 @@
 "%@ in %@ project folders you haven't changed for 6 months." = "%@ u %@ foldera projekata koje nisi menjao 6 meseci.";
 "Select only these" = "Izaberi samo njih";
 "changed %@" = "menjano %@";
+
+/* APFS clones */
+"Already share disk space (APFS clones)" = "Već dele prostor na disku (APFS klonovi)";
+"Replace with clones…" = "Zameni klonovima…";
+"Keep all copies but store their contents once. Frees %@ without deleting anything." = "Zadrži sve kopije, ali čuvaj sadržaj samo jednom. Oslobađa %@ bez brisanja ičega.";
+"Replace %@ copies with clones?" = "Zameniti %@ kopija klonovima?";
+"Replace" = "Zameni";
+"Every copy stays where it is, with its own name and dates, but the contents are stored only once. Editing one copy later does not change the others." = "Svaka kopija ostaje gde jeste, sa svojim imenom i datumima, ali se sadržaj čuva samo jednom. Kasnija izmena jedne kopije ne menja ostale.";
+"Sizes account for APFS clones: copies that already share disk space are not counted." = "Veličine uzimaju u obzir APFS klonove: kopije koje već dele prostor na disku se ne računaju.";
+"Some copies could not be replaced with clones:" = "Neke kopije nije bilo moguće zameniti klonovima:";
+"not a regular file" = "nije običan fajl";
+"on a different disk" = "na drugom disku";
+"has other hard links" = "ima druge hard linkove";
+"contents changed since the search" = "sadržaj se promenio od pretrage";
