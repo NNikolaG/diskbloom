@@ -14,9 +14,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var tree: DiskTree?
     /// The place `tree` belongs to, and when it was scanned.
     @Published private(set) var scannedPlace: Place?
-    @Published private(set) var scannedAt: Date?
+    @Published var scannedAt: Date?
     /// Entries the scan could not read (no Full Disk Access).
-    @Published private(set) var inaccessible: UInt64 = 0
+    @Published var inaccessible: UInt64 = 0
     /// Used on the volume but not seen by the scan.
     @Published private(set) var hiddenSpace: UInt64 = 0
     @Published var refreshing = false
@@ -229,6 +229,8 @@ final class AppModel: ObservableObject {
     func applyLaunchOptions() {
         if let path = launchOptions.scanPath {
             scan(.folder(URL(fileURLWithPath: path)), clean: launchOptions.openCleaner)
+        } else if let path = launchOptions.overviewPath {
+            select(.folder(URL(fileURLWithPath: path)))
         } else if launchOptions.showOverview {
             select(.bootVolume)
         }

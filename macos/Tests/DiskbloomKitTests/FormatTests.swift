@@ -25,5 +25,7 @@ struct FormatTests {
         #expect(options.view == .duplicates)
         #expect(!options.openCleaner)
         #expect(LaunchOptions(environment: ["DISKBLOOM_SCAN": ""]).scanPath == nil)
+        #expect(LaunchOptions(environment: ["DISKBLOOM_OVERVIEW": "1"]).overviewPath == nil)
+        #expect(LaunchOptions(environment: ["DISKBLOOM_OVERVIEW": "/Users/x"]).overviewPath == "/Users/x")
     }
 }

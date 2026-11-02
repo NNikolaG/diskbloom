@@ -68,6 +68,16 @@ jobs:
           sleep 45
           pgrep -x Diskbloom
           screencapture -x $OUT/2-map.png
+          # 2b) saved scan: a new big file, then reopen -> "Changes since" lists it
+          pkill -x Diskbloom || true; sleep 2
+          mkdir -p ~/grew && head -c 80000000 /dev/urandom > ~/grew/new-video.mov
+          open --env DISKBLOOM_OVERVIEW="$HOME" "$APP"
+          sleep 25
+          pgrep -x Diskbloom
+          screencapture -x $OUT/2b-changes.png
+          pkill -x Diskbloom || true; sleep 2
+          open --env DISKBLOOM_DEMO=1 --env DISKBLOOM_SCAN="$HOME" "$APP"
+          sleep 45
           # 3) click the second folder in the list -> it should open
           swift macos/ci/click.swift 800 202 || true
           sleep 3

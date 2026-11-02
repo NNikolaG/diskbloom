@@ -5,9 +5,9 @@ import Foundation
 /// rescanning only what FSEvents reports as changed, and show what grew.
 extension AppModel {
     /// Changes smaller than this are not worth listing.
-    private static let minGrowth: UInt64 = 25_000_000
+    nonisolated private static let minGrowth: UInt64 = 25_000_000
     /// More changed folders than this: one full rescan is simpler and not slower.
-    private static let maxRescans = 300
+    nonisolated private static let maxRescans = 300
 
     /// Loads the saved scan of `place`, if any, then updates it in the background.
     func openSaved(_ place: Place) {
