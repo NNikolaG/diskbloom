@@ -121,6 +121,18 @@ jobs:
           sleep 12
           pgrep -x Diskbloom
           screencapture -x $OUT/7-overview-sr.png
+          pkill -x Diskbloom || true; sleep 2
+          # 7) menu bar item: open its window, then the Settings window (⌘,)
+          open --env DISKBLOOM_OVERVIEW=1 "$APP"
+          sleep 12
+          pgrep -x Diskbloom
+          swift macos/ci/menubar.swift click || true
+          sleep 3
+          screencapture -x $OUT/8-menu-bar.png
+          swift macos/ci/menubar.swift settings || true
+          sleep 3
+          screencapture -x $OUT/9-settings.png
+          pgrep -x Diskbloom
           pkill -x Diskbloom || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
