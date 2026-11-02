@@ -15,10 +15,12 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
 - **Trash list**: queue items while browsing, see the total, move everything to the Trash in one step.
 - **Smart Clean**: build folders, package and app caches, Xcode data, simulators, emulators, VMs, old installers.
 - **Largest files** with when you last opened them, and **duplicates** (size → partial hash → full BLAKE3 hash).
+- **File types**: how much is video, images, audio, archives, documents, code, apps and system files, with the largest of each.
+- **Search** the scan by name (ignoring case and diacritics); a folder result opens on the map.
 - **Opens instantly**: the last scan is shown right away, then only folders that changed since are rescanned, with a list of **what grew**.
 - **Forgotten projects**: build folders and dependencies of projects you haven't touched for 6 months.
 - **Disk overview** with used / purgeable / free space and **Time Machine local snapshots**.
-- **Quick Look** (Space), **refresh one folder** (⌘R), views on ⌘1 / ⌘2 / ⌘3, Smart Clean on ⌘K.
+- **Quick Look** (Space), **refresh one folder** (⌘R), views on ⌘1 / ⌘2 / ⌘3 / ⌘4, Smart Clean on ⌘K.
 - **CLI** (`bloom`) for the terminal, also on Linux.
 
 <details>

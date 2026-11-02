@@ -50,6 +50,8 @@ made the way they were.
                                        ├─► children()/info()  ──► lists
                                        ├─► clean::find()      ──► Smart Clean
                                        ├─► largest_files()    ──► Largest files
+                                       ├─► kind_totals()      ──► File types
+                                       ├─► search()           ──► Search
                                        └─► DupeFinder::find() ──► Duplicates
                                                                       │
                      Tree::remove / replace_subtree ◄── Trash / rescan ┘
@@ -62,6 +64,8 @@ crates/core            diskbloom-core (library, no I/O besides scanning and hash
   scan.rs              Scanner, Node
   tree.rs              Tree (arena), remove, replace_subtree, largest_files
   tree/layout.rs       sunburst geometry
+  tree/search.rs       find by name (case- and diacritic-insensitive)
+  kinds.rs             file kinds by extension, .app bundles as one item
   clean/               Smart Clean: category.rs (enum), rules.rs (tables), mod.rs (walk)
   dupes.rs             duplicate finder
   volume.rs            /System/Volumes/Data path conversions
@@ -77,7 +81,8 @@ macos/Sources
     App/               entry point, window, menu commands
     Model/             AppModel (state) and its extensions: collector, cleanup, system
     Services/          AppKit glue: TrashMover, SystemActions, volumes
-    Sidebar/ Overview/ Map/ Collector/ Cleaner/ LargestFiles/ Duplicates/ Snapshots/
+    Sidebar/ Overview/ Map/ Collector/ Cleaner/ LargestFiles/ Duplicates/ Types/
+    Search/ Snapshots/
     Shared/            small reusable views
 ```
 
