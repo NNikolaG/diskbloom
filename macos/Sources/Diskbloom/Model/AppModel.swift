@@ -28,6 +28,8 @@ final class AppModel: ObservableObject {
 
     // MARK: Navigation
     @Published var resultMode: ResultMode = .map
+    /// Text in the search field; results replace the current mode while it is not empty.
+    @Published var searchQuery = ""
     @Published private(set) var focus: UInt32 = 0
     @Published private(set) var segments: [SegmentInfo] = []
     @Published private(set) var crumbs: [NodeInfo] = []
@@ -161,6 +163,7 @@ final class AppModel: ObservableObject {
         dupeGroups = nil
         collector = []
         resultMode = .map
+        searchQuery = ""
         growth = nil
         growthSince = nil
         zoom(to: tree.root())
@@ -240,8 +243,10 @@ final class AppModel: ObservableObject {
         switch launchOptions.view {
         case .largest: resultMode = .largest
         case .duplicates: resultMode = .duplicates
+        case .types: resultMode = .types
         case nil: break
         }
+        if let query = launchOptions.searchQuery { searchQuery = query }
         if launchOptions.demoCollector, let first = children.first { collect(first.id) }
     }
 }
