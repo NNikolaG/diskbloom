@@ -78,7 +78,9 @@ extension AppModel {
             tree.growthSince(old: old, minDelta: Self.minGrowth, limit: 8)
         }.value
         guard self.tree === tree else { return }
-        growth = changes
+        // Diskbloom's own saved scans are not news to the user.
+        let ownCache = ScanStore.directory.deletingLastPathComponent().path
+        growth = changes.filter { !$0.path.hasPrefix(ownCache) }
         growthSince = date
     }
 
