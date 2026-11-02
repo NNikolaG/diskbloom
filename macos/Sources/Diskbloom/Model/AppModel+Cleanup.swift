@@ -39,12 +39,15 @@ extension AppModel {
         guard let tree else { return }
         var toTrash: [TrashMover.Item] = []
         var simulators: [(id: UInt32, udid: String)] = []
+        var runtimes: [(id: UInt32, path: String)] = []
         for candidate in candidates {
             switch CleanupMethod.resolve(category: candidate.category, path: candidate.path) {
             case .trash:
                 toTrash.append(.init(id: candidate.id, path: candidate.path))
             case .simulator(let udid):
                 simulators.append((candidate.id, udid))
+            case .simulatorRuntime(let path):
+                runtimes.append((candidate.id, path))
             case .androidEmulator(let ini):
                 toTrash.append(.init(id: candidate.id, path: candidate.path))
                 if let iniID = tree.find(path: ini) { toTrash.append(.init(id: iniID, path: ini)) }
@@ -55,7 +58,40 @@ extension AppModel {
             }
         }
         if !simulators.isEmpty { await deleteSimulators(simulators) }
+        if !runtimes.isEmpty { await deleteSimulatorRuntimes(runtimes) }
         if !toTrash.isEmpty { await trash(toTrash) }
+    }
+
+    /// `xcrun simctl runtime delete <identifier>`, with the identifier that
+    /// `simctl runtime list -j` gives for each image path. Images it does not list as
+    /// deletable are left alone; nothing is ever moved to the Trash.
+    private func deleteSimulatorRuntimes(_ runtimes: [(id: UInt32, path: String)]) async {
+        guard let tree else { return }
+        let list = await Shell.run(ToolLocations.xcrun, ["simctl", "runtime", "list", "-j"])
+        guard list.succeeded else {
+            alert = String(localized: "Could not list simulator runtimes (is Xcode installed?):\n\(list.output)")
+            return
+        }
+        var failed: [String] = []
+        var removed = false
+        for runtime in runtimes {
+            guard let identifier = SimulatorRuntimeList.identifier(forImageAt: runtime.path, in: list.output) else {
+                failed.append(runtime.path)
+                continue
+            }
+            let result = await Shell.run(ToolLocations.xcrun, ["simctl", "runtime", "delete", identifier])
+            if result.succeeded {
+                _ = tree.remove(id: runtime.id)
+                removed = true
+            } else {
+                failed.append("\(runtime.path)\n\(result.output)")
+            }
+        }
+        if removed { rezoom() }
+        if !failed.isEmpty {
+            let paths = failed.joined(separator: "\n")
+            alert = String(localized: "Could not remove these simulator runtimes. Remove them in Xcode → Settings → Platforms:\n\(paths)")
+        }
     }
 
     private func deleteSimulators(_ simulators: [(id: UInt32, udid: String)]) async {

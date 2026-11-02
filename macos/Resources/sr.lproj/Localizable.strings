@@ -134,6 +134,8 @@
 "Could not delete simulators (is Xcode installed?):\n%@" = "Simulatore nije moguće obrisati (da li je Xcode instaliran?):\n%@";
 "Docker command line tool not found. Open Docker Desktop and use Troubleshoot → Clean / Purge data." = "Docker alat za komandnu liniju nije pronađen. Otvori Docker Desktop i koristi Troubleshoot → Clean / Purge data.";
 "docker system prune failed (is Docker running?):\n%@" = "docker system prune nije uspeo (da li Docker radi?):\n%@";
+"Could not list simulator runtimes (is Xcode installed?):\n%@" = "Nije moguće izlistati runtime-e simulatora (da li je Xcode instaliran?):\n%@";
+"Could not remove these simulator runtimes. Remove them in Xcode → Settings → Platforms:\n%@" = "Ove runtime-e simulatora nije moguće obrisati. Obriši ih u Xcode → Settings → Platforms:\n%@";
 
 /* Kategorije */
 "Rust build" = "Rust build";
@@ -158,12 +160,20 @@
 "iOS simulators" = "iOS simulatori";
 "Devices in Xcode's Simulator" = "Uređaji u Xcode simulatoru";
 "Simulator cache" = "Keš simulatora";
+"Simulator runtimes" = "Runtime-i simulatora";
+"iOS versions for the Simulator, removed with simctl" = "iOS verzije za simulator, brišu se alatom simctl";
 "Android emulators" = "Android emulatori";
 "AVD devices" = "AVD uređaji";
 "Android system images" = "Android system image-i";
 "Downloaded again by Android Studio" = "Android Studio ih ponovo preuzima";
 "Virtual machines" = "Virtuelne mašine";
 "Package caches" = "Keševi paketa";
+"Node versions (nvm)" = "Node verzije (nvm)";
+"With their global packages. Check nvm ls first" = "Sa svojim globalnim paketima. Prvo proveri nvm ls";
+"JetBrains IDE caches" = "Keševi JetBrains IDE-a";
+"Caches and logs; the IDE rebuilds its indexes" = "Keševi i logovi; IDE ponovo pravi svoje indekse";
+"VS Code / Cursor caches" = "VS Code / Cursor keševi";
+"Caches and logs; extensions and settings are kept" = "Keševi i logovi; ekstenzije i podešavanja ostaju";
 "App caches" = "Keševi aplikacija";
 "Logs" = "Logovi";
 "iPhone / iPad backups" = "iPhone / iPad backup-i";
