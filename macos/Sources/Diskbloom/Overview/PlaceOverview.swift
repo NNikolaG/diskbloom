@@ -17,6 +17,7 @@ struct PlaceOverview: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 header
+                if model.scannedPlace == place { ChangesCard() }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 14)], spacing: 14) {
                     actions
                 }
@@ -76,7 +77,7 @@ struct PlaceOverview: View {
                     .padding(.top, 4)
                 }
                 if let at = model.scannedAt, model.scannedPlace == place {
-                    Text("Last scanned: \(at.formatted(date: .omitted, time: .shortened))")
+                    Text("Last scanned: \(at.formatted(.relative(presentation: .named)))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

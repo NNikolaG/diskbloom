@@ -55,6 +55,7 @@ extension AppModel {
         let moved = Set(report.moved.map(\.id))
         collector.removeAll { moved.contains($0.id) }
         rezoom()
+        persist()
         return freed
     }
 }

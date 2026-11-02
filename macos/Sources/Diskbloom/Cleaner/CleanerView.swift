@@ -22,6 +22,14 @@ struct CleanerView: View {
 
     private static let maxRows = 100
 
+    /// Project items whose project nobody changed for six months.
+    private var forgotten: [CleanGroup.Item] {
+        let cutoff = Calendar.current.date(byAdding: .month, value: -6, to: .now) ?? .distantPast
+        return (groups ?? []).flatMap(\.items).filter { item in
+            item.isSelectable && item.lastActivity.map { $0 < cutoff } == true
+        }
+    }
+
     private var selectedSize: UInt64 {
         (groups ?? []).lazy.flatMap(\.items).filter { selected.contains($0.id) }.reduce(0) { $0 + $1.candidate.size }
     }
@@ -79,6 +87,7 @@ struct CleanerView: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 6) {
+                        ForgottenProjects(items: forgotten) { selected = Set(forgotten.map(\.id)) }
                         section("Safe to remove", "Rebuilt or re-downloaded automatically: builds, caches, logs.",
                                 groups.filter(\.safe))
                         section("Review before removing", "Emulators, virtual machines, backups, installers.",
@@ -186,11 +195,18 @@ struct CleanerView: View {
                     .frame(width: 16)
                     .accessibilityHidden(true)
             }
-            Text(item.label)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .help(item.candidate.path)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.label)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let lastActivity = item.lastActivity {
+                    Text("changed \(lastActivity.formatted(.relative(presentation: .named)))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(item.candidate.path)
             if item.method == .docker {
                 Button("Clean up in Docker…") { confirmDocker = true }
                     .help("The Docker disk image must not be deleted while Docker uses it. This runs docker system prune instead.")

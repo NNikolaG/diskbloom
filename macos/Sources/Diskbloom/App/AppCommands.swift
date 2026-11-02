@@ -14,6 +14,8 @@ struct AppCommands: Commands {
             Button("Smart Clean…") { model.showCleaner = true }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(model.tree == nil)
+            Divider()
+            Button("Forget Saved Scans") { model.forgetSavedScans() }
         }
         CommandGroup(after: .toolbar) {
             Button("Quick Look") { model.quickLook(model.lastHoveredID) }

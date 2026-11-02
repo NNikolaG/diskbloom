@@ -18,6 +18,7 @@ extension AppModel {
                 // Queued ids from the old subtree are gone.
                 collector.removeAll { !tree.isAttached(id: $0.id) }
                 zoom(to: wasFocus || !tree.isAttached(id: focus) ? newID : focus)
+                persist()
             case .failure(let error):
                 alert = String(localized: "Refresh failed: \(error.localizedDescription)")
             }
@@ -67,6 +68,7 @@ extension AppModel {
         }
         for simulator in simulators { _ = tree.remove(id: simulator.id) }
         rezoom()
+        persist()
     }
 
     /// `xcrun simctl delete unavailable`: simulators whose iOS version is no longer installed.

@@ -8,6 +8,8 @@ struct CleanGroup: Identifiable {
         let candidate: CleanCandidate
         let label: String
         let method: CleanupMethod
+        /// Last change in the project outside this item; `nil` for non-project items.
+        let lastActivity: Date?
         var id: UInt32 { candidate.id }
         /// Docker data is cleaned with `docker system prune`, never selected as a file.
         var isSelectable: Bool { method != .docker && method != .skip }
@@ -30,7 +32,9 @@ struct CleanGroup: Identifiable {
                 let items = members.sorted { $0.size > $1.size }.map { candidate in
                     Item(candidate: candidate,
                          label: CandidateLabel.make(category: category, path: candidate.path, home: home),
-                         method: CleanupMethod.resolve(category: category, path: candidate.path))
+                         method: CleanupMethod.resolve(category: category, path: candidate.path),
+                         lastActivity: candidate.lastActivity > 0
+                             ? Date(timeIntervalSince1970: TimeInterval(candidate.lastActivity)) : nil)
                 }
                 return CleanGroup(category: category, safe: members.first?.safe ?? true, items: items,
                                   size: members.reduce(0) { $0 + $1.size })

@@ -206,3 +206,15 @@
 "Expanded" = "Otvoreno";
 "Collapsed" = "Zatvoreno";
 "Disk map" = "Mapa diska";
+
+/* Saved scans and changes */
+"Checking what changed since %@…" = "Proveravam šta se promenilo od %@…";
+"Changes since %@" = "Promene od %@";
+"No big changes since %@" = "Nema većih promena od %@";
+"Forget Saved Scans" = "Zaboravi sačuvana skeniranja";
+
+/* Forgotten projects */
+"Forgotten projects" = "Zaboravljeni projekti";
+"%@ in %@ project folders you haven't changed for 6 months." = "%@ u %@ foldera projekata koje nisi menjao 6 meseci.";
+"Select only these" = "Izaberi samo njih";
+"changed %@" = "menjano %@";

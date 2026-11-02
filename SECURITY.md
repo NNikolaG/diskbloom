@@ -24,7 +24,10 @@ Diskbloom usually runs with **Full Disk Access**, so it is designed to be boring
 - **Hardened runtime.** The app is signed with the hardened runtime, so other processes cannot
   inject code into it to borrow its Full Disk Access. The only entitlement is sending Apple
   Events to Finder (for "Empty Trash").
-- **No settings, caches or telemetry** are stored by the app.
+- **No telemetry.** The only thing the app stores is its last scan of each place (file
+  names and sizes, in `~/Library/Caches/io.github.nnikolag.diskbloom/scans`), so it can
+  show it right away next time and list what grew. It stays on your Mac; **Forget Saved
+  Scans** in the File menu deletes it.
 
 ## Security review (v0.3.0)
 

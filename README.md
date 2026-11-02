@@ -15,6 +15,8 @@ Rust scanning engine, native SwiftUI app · English and Serbian</p>
 - **Trash list**: queue items while browsing, see the total, move everything to the Trash in one step.
 - **Smart Clean**: build folders, package and app caches, Xcode data, simulators, emulators, VMs, old installers.
 - **Largest files** with when you last opened them, and **duplicates** (size → partial hash → full BLAKE3 hash).
+- **Opens instantly**: the last scan is shown right away, then only folders that changed since are rescanned, with a list of **what grew**.
+- **Forgotten projects**: build folders and dependencies of projects you haven't touched for 6 months.
 - **Disk overview** with used / purgeable / free space and **Time Machine local snapshots**.
 - **Quick Look** (Space), **refresh one folder** (⌘R), views on ⌘1 / ⌘2 / ⌘3, Smart Clean on ⌘K.
 - **CLI** (`bloom`) for the terminal, also on Linux.
@@ -144,7 +146,11 @@ DISKBLOOM_SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)" ./macos/bu
 rm -rf /Applications/Diskbloom.app
 ```
 
-Diskbloom keeps no settings or caches of its own.
+Diskbloom keeps no settings. Its saved scans (file names and sizes only) can be removed with:
+
+```bash
+rm -rf ~/Library/Caches/io.github.nnikolag.diskbloom
+```
 
 </details>
 

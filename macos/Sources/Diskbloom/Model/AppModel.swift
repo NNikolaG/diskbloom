@@ -20,6 +20,11 @@ final class AppModel: ObservableObject {
     /// Used on the volume but not seen by the scan.
     @Published private(set) var hiddenSpace: UInt64 = 0
     @Published var refreshing = false
+    /// Bringing a saved scan up to date with what changed on disk since.
+    @Published var catchingUp = false
+    /// Biggest changes since the previous scan of this place, and when that was.
+    @Published var growth: [GrowthInfo]?
+    @Published var growthSince: Date?
 
     // MARK: Navigation
     @Published var resultMode: ResultMode = .map
@@ -45,6 +50,10 @@ final class AppModel: ObservableObject {
 
     private var job: ScanJob?
     private var openCleanerAfterScan = false
+    /// When and at which FSEvents id `tree` matched the disk; used to save it.
+    var sync: ScanStore.Sync?
+    /// Saves run one after another so they never write the same file at once.
+    var saveTask: Task<Void, Never>?
     let launchOptions: LaunchOptions
 
     init(launchOptions: LaunchOptions = .current) {
@@ -67,6 +76,7 @@ final class AppModel: ObservableObject {
         if case .scanning = phase { cancelScan() }
         selected = place
         phase = (scannedPlace == place && tree != nil) ? .ready : .idle
+        if scannedPlace != place { openSaved(place) }
     }
 
     /// Writable view of `selected` for the sidebar list.
@@ -101,7 +111,10 @@ final class AppModel: ObservableObject {
         }
         self.job = job
         openCleanerAfterScan = clean
+        let eventID = ChangeHistory.currentEventID
         tree = nil
+        growth = nil
+        growthSince = nil
         dupeGroups = nil
         resultMode = .map
         collector = []
@@ -121,6 +134,7 @@ final class AppModel: ObservableObject {
             switch result {
             case .success(let tree):
                 finishScan(tree, of: place, job: job)
+                await compareWithSaved(tree, sync: ScanStore.Sync(root: path, eventID: eventID, date: .now))
             case .failure(let error) where (error as? BloomError) == .Cancelled:
                 phase = .idle
             case .failure(let error):
@@ -130,16 +144,31 @@ final class AppModel: ObservableObject {
     }
 
     private func finishScan(_ tree: DiskTree, of place: Place, job: ScanJob) {
-        self.tree = tree
-        scannedPlace = place
-        scannedAt = .now
-        inaccessible = job.errors()
-        hiddenSpace = BootVolume.hiddenSpace(of: place.url, seen: tree.info(id: tree.root())?.size ?? 0)
+        show(tree, of: place, scannedAt: .now, inaccessible: job.errors())
         phase = .ready
-        zoom(to: tree.root())
         if openCleanerAfterScan { showCleaner = true }
         openCleanerAfterScan = false
         applyLaunchOptionsAfterScan()
+    }
+
+    /// Makes `tree` the current result for `place` (fresh or loaded from disk).
+    func show(_ tree: DiskTree, of place: Place, scannedAt: Date, inaccessible: UInt64) {
+        self.tree = tree
+        scannedPlace = place
+        self.scannedAt = scannedAt
+        self.inaccessible = inaccessible
+        hiddenSpace = BootVolume.hiddenSpace(of: place.url, seen: tree.info(id: tree.root())?.size ?? 0)
+        dupeGroups = nil
+        collector = []
+        resultMode = .map
+        growth = nil
+        growthSince = nil
+        zoom(to: tree.root())
+    }
+
+    var isScanning: Bool {
+        if case .scanning = phase { return true }
+        return false
     }
 
     func cancelScan() {
