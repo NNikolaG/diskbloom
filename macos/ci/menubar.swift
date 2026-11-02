@@ -1,7 +1,8 @@
 // CI helper for the menu bar item.
-//   swift menubar.swift click      clicks Diskbloom's status item (found by its window)
+//   swift menubar.swift click      clicks Diskbloom's status item
 //   swift menubar.swift settings   sends ⌘, to Diskbloom (opens the Settings window)
 import AppKit
+import ApplicationServices
 import CoreGraphics
 
 let bundleID = "io.github.nnikolag.diskbloom"
@@ -15,27 +16,53 @@ func post(_ event: CGEvent?) {
     usleep(100_000)
 }
 
+/// The status item's frame in screen points (origin top left): from the app's
+/// accessibility tree (its "extras" menu bar), else from a status-level window of the app.
+func statusItemFrame() -> CGRect? {
+    let element = AXUIElementCreateApplication(pid)
+    var extras: CFTypeRef?
+    if AXUIElementCopyAttributeValue(element, "AXExtrasMenuBar" as CFString, &extras) == .success,
+       let bar = extras {
+        var children: CFTypeRef?
+        AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &children)
+        for child in (children as? [AXUIElement]) ?? [] {
+            var position: CFTypeRef?
+            var size: CFTypeRef?
+            AXUIElementCopyAttributeValue(child, kAXPositionAttribute as CFString, &position)
+            AXUIElementCopyAttributeValue(child, kAXSizeAttribute as CFString, &size)
+            var origin = CGPoint.zero
+            var extent = CGSize.zero
+            if let position, let size,
+               AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+               AXValueGetValue(size as! AXValue, .cgSize, &extent), extent.width > 0 {
+                return CGRect(origin: origin, size: extent)
+            }
+        }
+    } else {
+        print("No accessibility access to the menu bar extras (trusted: \(AXIsProcessTrusted()))")
+    }
+    let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
+    let windows = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+    for info in windows where info[kCGWindowOwnerPID as String] as? pid_t == pid {
+        print(info[kCGWindowLayer as String] ?? "?", info[kCGWindowBounds as String] ?? "?")
+        guard info[kCGWindowLayer as String] as? Int == statusLevel,
+              let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+              let frame = CGRect(dictionaryRepresentation: bounds),
+              frame.minY < 5, frame.height < 50
+        else { continue }
+        return frame
+    }
+    return nil
+}
+
 switch CommandLine.arguments.dropFirst().first {
 case "click":
-    // A status item is a small window of the app at the status bar level, at the top of the screen.
-    let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
-    let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-    let item = windows.first { info in
-        guard info[kCGWindowOwnerPID as String] as? pid_t == pid,
-              info[kCGWindowLayer as String] as? Int == statusLevel,
-              let bounds = info[kCGWindowBounds as String] as? [String: Double]
-        else { return false }
-        return (bounds["Y"] ?? 99) < 5 && (bounds["Height"] ?? 99) < 50
-    }
-    guard let bounds = item?[kCGWindowBounds as String] as? [String: Double],
-          let x = bounds["X"], let width = bounds["Width"], let height = bounds["Height"]
-    else {
-        print("No status item window found for Diskbloom")
-        for info in windows where info[kCGWindowOwnerPID as String] as? pid_t == pid { print(info) }
+    guard let frame = statusItemFrame() else {
+        print("No status item found for Diskbloom")
         exit(1)
     }
-    let point = CGPoint(x: x + width / 2, y: (bounds["Y"] ?? 0) + height / 2)
-    print("Status item at \(bounds), clicking \(point)")
+    let point = CGPoint(x: frame.midX, y: frame.midY)
+    print("Status item at \(frame), clicking \(point)")
     post(CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left))
     post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left))
     post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left))
