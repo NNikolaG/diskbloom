@@ -4,7 +4,7 @@
 # `version` and `sha256` are rewritten by .github/workflows/release.yml after each release.
 cask "diskbloom" do
   version "0.4.0"
-  sha256 "bb19609b5dca8d9083e16398c2eacf2121faf83d8d78da6e941f514ab86d18ac"
+  sha256 "9e5750a122f2266897f66ed5fed5c4f605fee00ea7e9ac159a3f67a6f1cfd03c"
 
   url "https://github.com/NNikolaG/diskbloom/releases/download/v#{version}/Diskbloom-#{version}.zip"
   name "Diskbloom"
